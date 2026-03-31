@@ -36,6 +36,7 @@ model Client {
   email        String?
   phone        String?
   address      String?
+  branch       String?
   city         String?
   contactName  String?      @map("contact_name")
   logoUrl      String?      @map("logo_url")
