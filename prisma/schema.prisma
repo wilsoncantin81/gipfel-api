@@ -1,0 +1,303 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         UserRole @default(TECNICO)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  maintenanceRecords MaintenanceRecord[]
+  reports      ServiceReport[]
+  assignedTickets Ticket[] @relation("AssignedTechnician")
+  activityLogs ActivityLog[]
+  commissions  Commission[]
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  TECNICO
+}
+
+model Client {
+  id           String       @id @default(uuid())
+  businessName String       @map("business_name")
+  nit          String?      @unique
+  email        String?
+  phone        String?
+  address      String?
+  city         String?
+  contactName  String?      @map("contact_name")
+  logoUrl      String?      @map("logo_url")
+  status       ClientStatus @default(ACTIVO)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  assets       Asset[]
+  reports      ServiceReport[]
+  tickets      Ticket[]
+  alerts       Alert[]
+  @@map("clients")
+}
+
+enum ClientStatus {
+  ACTIVO
+  INACTIVO
+}
+
+model AssetType {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  icon        String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  assets      Asset[]
+  @@map("asset_types")
+}
+
+model Asset {
+  id               String      @id @default(uuid())
+  clientId         String      @map("client_id")
+  assetTypeId      String      @map("asset_type_id")
+  name             String
+  brand            String?
+  model            String?
+  serialNumber     String?     @unique @map("serial_number")
+  inventoryCode    String?     @unique @map("inventory_code")
+  purchaseDate     DateTime?   @map("purchase_date")
+  warrantyUntil    DateTime?   @map("warranty_until")
+  location         String?
+  status           AssetStatus @default(ACTIVO)
+  notes            String?
+  encryptedPassword String?    @map("encrypted_password")
+  nextMaintenance  DateTime?   @map("next_maintenance")
+  maintenanceFrequencyDays Int? @map("maintenance_frequency_days")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+  client           Client      @relation(fields: [clientId], references: [id])
+  assetType        AssetType   @relation(fields: [assetTypeId], references: [id])
+  maintenanceRecords MaintenanceRecord[]
+  reports          ReportAsset[]
+  tickets          Ticket[]
+  alerts           Alert[]
+  @@map("assets")
+}
+
+enum AssetStatus {
+  ACTIVO
+  EN_MANTENIMIENTO
+  DADO_DE_BAJA
+}
+
+model MaintenanceRecord {
+  id           String          @id @default(uuid())
+  assetId      String          @map("asset_id")
+  technicianId String?         @map("technician_id")
+  type         MaintenanceType
+  description  String
+  findings     String?
+  nextDate     DateTime?       @map("next_date")
+  cost         Float?
+  createdAt    DateTime        @default(now()) @map("created_at")
+  asset        Asset           @relation(fields: [assetId], references: [id])
+  technician   User?           @relation(fields: [technicianId], references: [id])
+  @@map("maintenance_records")
+}
+
+enum MaintenanceType {
+  PREVENTIVO
+  CORRECTIVO
+  INSTALACION
+  CONFIGURACION
+}
+
+model ServiceReport {
+  id              String      @id @default(uuid())
+  clientId        String      @map("client_id")
+  technicianId    String?     @map("technician_id")
+  reportNumber    String      @unique @map("report_number")
+  date            DateTime
+  serviceType     ServiceType @map("service_type")
+  description     String
+  workDone        String?     @map("work_done")
+  recommendations String?
+  clientSignature String?     @map("client_signature")
+  techSignature   String?     @map("tech_signature")
+  emailSent       Boolean     @default(false) @map("email_sent")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  client          Client      @relation(fields: [clientId], references: [id])
+  technician      User?       @relation(fields: [technicianId], references: [id])
+  assets          ReportAsset[]
+  tickets         Ticket[]
+  @@map("service_reports")
+}
+
+model ReportAsset {
+  id       String        @id @default(uuid())
+  reportId String        @map("report_id")
+  assetId  String        @map("asset_id")
+  report   ServiceReport @relation(fields: [reportId], references: [id])
+  asset    Asset         @relation(fields: [assetId], references: [id])
+  @@map("report_assets")
+}
+
+enum ServiceType {
+  EN_SITIO
+  REMOTO
+  TELEFONICO
+}
+
+model Ticket {
+  id             String       @id @default(uuid())
+  ticketNumber   String       @unique @map("ticket_number")
+  clientId       String       @map("client_id")
+  assetId        String?      @map("asset_id")
+  assignedToId   String?      @map("assigned_to")
+  reportId       String?      @map("report_id")
+  title          String
+  description    String?
+  conclusion     String?
+  priority       Priority     @default(MEDIA)
+  status         TicketStatus @default(NUEVO)
+  invoiceNumber  String?      @map("invoice_number")
+  salePrice      Float?       @map("sale_price")
+  totalCost      Float?       @map("total_cost")
+  utility        Float?
+  slaHours       Int?         @map("sla_hours")
+  resolvedAt     DateTime?    @map("resolved_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  client         Client       @relation(fields: [clientId], references: [id])
+  asset          Asset?       @relation(fields: [assetId], references: [id])
+  assignedTo     User?        @relation("AssignedTechnician", fields: [assignedToId], references: [id])
+  report         ServiceReport? @relation(fields: [reportId], references: [id])
+  tasks          TicketTask[]
+  expenses       TicketExpense[]
+  commission     Commission?
+  @@index([clientId])
+  @@map("tickets")
+}
+
+enum Priority {
+  BAJA
+  MEDIA
+  ALTA
+  CRITICA
+}
+
+enum TicketStatus {
+  NUEVO
+  EN_EJECUCION
+  POR_CONFIRMACION
+  PENDIENTE_WILSON
+  POR_FACTURACION
+  CERRADO
+}
+
+model TicketTask {
+  id        String   @id @default(uuid())
+  ticketId  String   @map("ticket_id")
+  title     String
+  done      Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  @@map("ticket_tasks")
+}
+
+model TicketExpense {
+  id              String   @id @default(uuid())
+  ticketId        String   @map("ticket_id")
+  date            DateTime
+  description     String
+  supplier        String?
+  supplierInvoice String?  @map("supplier_invoice")
+  quantity        Float    @default(1)
+  unitPrice       Float    @map("unit_price")
+  total           Float
+  createdAt       DateTime @default(now()) @map("created_at")
+  ticket          Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  @@map("ticket_expenses")
+}
+
+model Commission {
+  id          String           @id @default(uuid())
+  ticketId    String           @unique @map("ticket_id")
+  userId      String           @map("user_id")
+  amount      Float
+  percentage  Float            @default(10)
+  status      CommissionStatus @default(PENDIENTE)
+  paidAt      DateTime?        @map("paid_at")
+  notes       String?
+  createdAt   DateTime         @default(now()) @map("created_at")
+  ticket      Ticket           @relation(fields: [ticketId], references: [id])
+  user        User             @relation(fields: [userId], references: [id])
+  @@map("commissions")
+}
+
+enum CommissionStatus {
+  PENDIENTE
+  PAGADA
+}
+
+model Alert {
+  id        String    @id @default(uuid())
+  clientId  String?   @map("client_id")
+  assetId   String?   @map("asset_id")
+  type      AlertType
+  message   String
+  dueDate   DateTime? @map("due_date")
+  isRead    Boolean   @default(false) @map("is_read")
+  createdAt DateTime  @default(now()) @map("created_at")
+  client    Client?   @relation(fields: [clientId], references: [id])
+  asset     Asset?    @relation(fields: [assetId], references: [id])
+  @@map("alerts")
+}
+
+enum AlertType {
+  GARANTIA
+  MANTENIMIENTO
+  TICKET
+}
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  userId     String?  @map("user_id")
+  action     String
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id")
+  ipAddress  String?  @map("ip_address")
+  meta       Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+  user       User?    @relation(fields: [userId], references: [id])
+  @@map("activity_logs")
+}
+
+model Attachment {
+  id         String         @id @default(uuid())
+  entityType AttachmentType @map("entity_type")
+  entityId   String         @map("entity_id")
+  filename   String
+  url        String
+  mimeType   String?        @map("mime_type")
+  size       Int?
+  createdAt  DateTime       @default(now()) @map("created_at")
+  @@map("attachments")
+}
+
+enum AttachmentType {
+  ASSET
+  MAINTENANCE
+  REPORT
+  TICKET
+}

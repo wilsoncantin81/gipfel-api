@@ -1,0 +1,89 @@
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../common/prisma.service';
+
+@Injectable()
+export class AssetsService {
+  constructor(private prisma: PrismaService) {}
+
+  async findAll(q: any) {
+    const where: any = {};
+    if (q.clientId) where.clientId = q.clientId;
+    if (q.status) where.status = q.status;
+    if (q.assetTypeId) where.assetTypeId = q.assetTypeId;
+    return this.prisma.asset.findMany({
+      where,
+      include: { client: { select: { id: true, businessName: true } }, assetType: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findOne(id: string) {
+    return this.prisma.asset.findUnique({
+      where: { id },
+      include: {
+        client: true, assetType: true,
+        maintenanceRecords: { include: { technician: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } },
+      },
+    });
+  }
+
+  async create(dto: any) {
+    return this.prisma.asset.create({
+      data: dto,
+      include: { client: true, assetType: true },
+    });
+  }
+
+  async update(id: string, dto: any) {
+    return this.prisma.asset.update({ where: { id }, data: dto, include: { client: true, assetType: true } });
+  }
+
+  async remove(id: string) {
+    await this.prisma.asset.delete({ where: { id } });
+    return { deleted: true };
+  }
+
+  async getPassword(id: string) {
+    const a = await this.prisma.asset.findUnique({ where: { id } });
+    if (!a?.encryptedPassword) return { password: null };
+    try {
+      const buf = Buffer.from(a.encryptedPassword, 'base64');
+      return { password: buf.toString('utf8') };
+    } catch { return { password: a.encryptedPassword }; }
+  }
+
+  async getQR(id: string) {
+    const QRCode = require('qrcode');
+    const a = await this.prisma.asset.findUnique({ where: { id } });
+    if (!a) return { qrCodeUrl: null };
+    const qr = await QRCode.toDataURL(`GIPFEL-ASSET:${id}`);
+    return { qrCodeUrl: qr, name: a.name };
+  }
+
+  async exportExcel() {
+    const assets = await this.prisma.asset.findMany({
+      include: { client: { select: { businessName: true } }, assetType: { select: { name: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const ExcelJS = require('exceljs');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Activos');
+    ws.columns = [
+      { header: 'Nombre', key: 'name', width: 30 },
+      { header: 'Tipo', key: 'type', width: 20 },
+      { header: 'Cliente', key: 'client', width: 30 },
+      { header: 'Marca', key: 'brand', width: 15 },
+      { header: 'Modelo', key: 'model', width: 15 },
+      { header: 'Serial', key: 'serial', width: 20 },
+      { header: 'Estado', key: 'status', width: 15 },
+      { header: 'Ubicación', key: 'location', width: 20 },
+    ];
+    ws.getRow(1).font = { bold: true };
+    assets.forEach((a: any) => ws.addRow({
+      name: a.name, type: a.assetType?.name || '', client: a.client?.businessName || '',
+      brand: a.brand || '', model: a.model || '', serial: a.serialNumber || '',
+      status: a.status, location: a.location || '',
+    }));
+    return wb.xlsx.writeBuffer();
+  }
+}
