@@ -10,7 +10,12 @@ export class AssetsService {
     if (q.clientId) where.clientId = q.clientId;
     if (q.status) where.status = q.status;
     if (q.assetTypeId) where.assetTypeId = q.assetTypeId;
-    if (q.search) where.name = { contains: q.search, mode: 'insensitive' };
+   if (q.search) where.OR = [
+  { name: { contains: q.search, mode: 'insensitive' } },
+  { inventoryCode: { contains: q.search, mode: 'insensitive' } },
+  { serialNumber: { contains: q.search, mode: 'insensitive' } },
+  { brand: { contains: q.search, mode: 'insensitive' } },
+];
     return this.prisma.asset.findMany({
       where,
       include: { client: { select: { id: true, businessName: true } }, assetType: true },
