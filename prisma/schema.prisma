@@ -1,311 +1,130 @@
-generator client {
-  provider = "prisma-client-js"
-}
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../common/prisma.service';
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
+@Injectable()
+export class AssetsService {
+  constructor(private prisma: PrismaService) {}
 
-model User {
-  id           String   @id @default(uuid())
-  name         String
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  role         UserRole @default(TECNICO)
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-  maintenanceRecords MaintenanceRecord[]
-  reports      ServiceReport[]
-  assignedTickets Ticket[] @relation("AssignedTechnician")
-  activityLogs ActivityLog[]
-  commissions  Commission[]
-  @@map("users")
-}
+  async findAll(q: any) {
+    const where: any = {};
+    if (q.clientId) where.clientId = q.clientId;
+    if (q.status) where.status = q.status;
+    if (q.assetTypeId) where.assetTypeId = q.assetTypeId;
+    if (q.search) where.name = { contains: q.search, mode: 'insensitive' };
+    return this.prisma.asset.findMany({
+      where,
+      include: { client: { select: { id: true, businessName: true } }, assetType: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 
-enum UserRole {
-  ADMIN
-  TECNICO
-}
+  async findOne(id: string) {
+    return this.prisma.asset.findUnique({
+      where: { id },
+      include: {
+        client: true, assetType: true,
+        maintenanceRecords: { include: { technician: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } },
+      },
+    });
+  }
 
-model Client {
-  id           String       @id @default(uuid())
-  businessName String       @map("business_name")
-  nit          String?      @unique
-  email        String?
-  phone        String?
-  address      String?
-  branch       String?
-  city         String?
-  contactName  String?      @map("contact_name")
-  logoUrl      String?      @map("logo_url")
-  status       ClientStatus @default(ACTIVO)
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  assets       Asset[]
-  reports      ServiceReport[]
-  tickets      Ticket[]
-  alerts       Alert[]
-  @@map("clients")
-}
+  private sanitize(dto: any) {
+    const data: any = {
+      name: dto.name,
+      brand: dto.brand || undefined,
+      model: dto.model || undefined,
+      serialNumber: dto.serialNumber || dto.serial || undefined,
+      inventoryCode: dto.inventoryCode || dto.code || undefined,
+      purchaseDate: dto.purchaseDate ? new Date(dto.purchaseDate) : undefined,
+      warrantyUntil: dto.warrantyUntil ? new Date(dto.warrantyUntil) : undefined,
+      location: dto.location || undefined,
+      status: dto.status || 'ACTIVO',
+      notes: dto.notes || undefined,
+      encryptedPassword: dto.password ? Buffer.from(dto.password).toString('base64') : undefined,
+      nextMaintenance: dto.nextMaintenance ? new Date(dto.nextMaintenance) : undefined,
+      maintenanceFrequencyDays: dto.maintenanceFrequencyDays ? Number(dto.maintenanceFrequencyDays) : undefined,
+    };
+    // Extra fields stored as notes JSON if not in schema
+    if (dto.extraFields || dto.supplier || dto.assignedUser || dto.responsible || dto.ipAddress || dto.macAddress || dto.remoteAccess) {
+      const extra: any = {};
+      if (dto.supplier) extra.supplier = dto.supplier;
+      if (dto.assignedUser) extra.assignedUser = dto.assignedUser;
+      if (dto.responsible) extra.responsible = dto.responsible;
+      if (dto.ipAddress) extra.ipAddress = dto.ipAddress;
+      if (dto.macAddress) extra.macAddress = dto.macAddress;
+      if (dto.remoteAccess) extra.remoteAccess = dto.remoteAccess;
+      if (dto.extraFields && Array.isArray(dto.extraFields)) {
+        dto.extraFields.forEach((f: any) => { if (f.k) extra[f.k] = f.v; });
+      }
+      if (Object.keys(extra).length > 0) {
+        data.notes = JSON.stringify(extra);
+      }
+    }
+    if (dto.clientId) data.clientId = dto.clientId;
+    if (dto.assetTypeId) data.assetTypeId = dto.assetTypeId;
+    return data;
+  }
 
-enum ClientStatus {
-  ACTIVO
-  INACTIVO
-}
+  async create(dto: any) {
+    return this.prisma.asset.create({
+      data: this.sanitize(dto),
+      include: { client: true, assetType: true },
+    });
+  }
 
-model AssetType {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  description String?
-  icon        String?
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  assets      Asset[]
-  @@map("asset_types")
-}
+  async update(id: string, dto: any) {
+    const data = this.sanitize(dto);
+    delete data.clientId;
+    delete data.assetTypeId;
+    return this.prisma.asset.update({ where: { id }, data, include: { client: true, assetType: true } });
+  }
 
-model Asset {
-  id               String      @id @default(uuid())
-  clientId         String      @map("client_id")
-  assetTypeId      String      @map("asset_type_id")
-  name             String
-  brand            String?
-  model            String?
-  serialNumber     String?     @unique @map("serial_number")
-  inventoryCode    String?     @map("inventory_code")
-  purchaseDate     DateTime?   @map("purchase_date")
-  warrantyUntil    DateTime?   @map("warranty_until")
-  location         String?
-  status           AssetStatus @default(ACTIVO)
-  notes            String?
-  encryptedPassword String?    @map("encrypted_password")
-  nextMaintenance  DateTime?   @map("next_maintenance")
-  maintenanceFrequencyDays Int? @map("maintenance_frequency_days")
-  supplier         String?
-  assignedUser     String?     @map("assigned_user")
-  responsible      String?
-  ipAddress        String?     @map("ip_address")
-  macAddress       String?     @map("mac_address")
-  remoteAccess     String?     @map("remote_access")
-  extraFields      Json?       @map("extra_fields")
-  createdAt        DateTime    @default(now()) @map("created_at")
-  updatedAt        DateTime    @updatedAt @map("updated_at")
-  client           Client      @relation(fields: [clientId], references: [id])
-  assetType        AssetType   @relation(fields: [assetTypeId], references: [id])
-  maintenanceRecords MaintenanceRecord[]
-  reports          ReportAsset[]
-  tickets          Ticket[]
-  alerts           Alert[]
-  @@map("assets")
-}
+  async remove(id: string) {
+    await this.prisma.asset.delete({ where: { id } });
+    return { deleted: true };
+  }
 
-enum AssetStatus {
-  ACTIVO
-  EN_MANTENIMIENTO
-  DADO_DE_BAJA
-}
+  async getPassword(id: string) {
+    const a = await this.prisma.asset.findUnique({ where: { id } });
+    if (!a?.encryptedPassword) return { password: null };
+    try {
+      return { password: Buffer.from(a.encryptedPassword, 'base64').toString('utf8') };
+    } catch { return { password: a.encryptedPassword }; }
+  }
 
-model MaintenanceRecord {
-  id           String          @id @default(uuid())
-  assetId      String          @map("asset_id")
-  technicianId String?         @map("technician_id")
-  type         MaintenanceType
-  description  String
-  findings     String?
-  nextDate     DateTime?       @map("next_date")
-  cost         Float?
-  createdAt    DateTime        @default(now()) @map("created_at")
-  asset        Asset           @relation(fields: [assetId], references: [id])
-  technician   User?           @relation(fields: [technicianId], references: [id])
-  @@map("maintenance_records")
-}
+  async getQR(id: string) {
+    const QRCode = require('qrcode');
+    const a = await this.prisma.asset.findUnique({ where: { id } });
+    if (!a) return { qrCodeUrl: null };
+    const qr = await QRCode.toDataURL(`GIPFEL-ASSET:${id}`);
+    return { qrCodeUrl: qr, name: a.name };
+  }
 
-enum MaintenanceType {
-  PREVENTIVO
-  CORRECTIVO
-  INSTALACION
-  CONFIGURACION
-}
-
-model ServiceReport {
-  id              String      @id @default(uuid())
-  clientId        String      @map("client_id")
-  technicianId    String?     @map("technician_id")
-  reportNumber    String      @unique @map("report_number")
-  date            DateTime
-  serviceType     ServiceType @map("service_type")
-  description     String
-  workDone        String?     @map("work_done")
-  recommendations String?
-  clientSignature String?     @map("client_signature")
-  techSignature   String?     @map("tech_signature")
-  emailSent       Boolean     @default(false) @map("email_sent")
-  createdAt       DateTime    @default(now()) @map("created_at")
-  client          Client      @relation(fields: [clientId], references: [id])
-  technician      User?       @relation(fields: [technicianId], references: [id])
-  assets          ReportAsset[]
-  tickets         Ticket[]
-  @@map("service_reports")
-}
-
-model ReportAsset {
-  id       String        @id @default(uuid())
-  reportId String        @map("report_id")
-  assetId  String        @map("asset_id")
-  report   ServiceReport @relation(fields: [reportId], references: [id])
-  asset    Asset         @relation(fields: [assetId], references: [id])
-  @@map("report_assets")
-}
-
-enum ServiceType {
-  EN_SITIO
-  REMOTO
-  TELEFONICO
-}
-
-model Ticket {
-  id             String       @id @default(uuid())
-  ticketNumber   String       @unique @map("ticket_number")
-  clientId       String       @map("client_id")
-  assetId        String?      @map("asset_id")
-  assignedToId   String?      @map("assigned_to")
-  reportId       String?      @map("report_id")
-  title          String
-  description    String?
-  conclusion     String?
-  priority       Priority     @default(MEDIA)
-  status         TicketStatus @default(NUEVO)
-  invoiceNumber  String?      @map("invoice_number")
-  salePrice      Float?       @map("sale_price")
-  totalCost      Float?       @map("total_cost")
-  utility        Float?
-  slaHours       Int?         @map("sla_hours")
-  resolvedAt     DateTime?    @map("resolved_at")
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
-  client         Client       @relation(fields: [clientId], references: [id])
-  asset          Asset?       @relation(fields: [assetId], references: [id])
-  assignedTo     User?        @relation("AssignedTechnician", fields: [assignedToId], references: [id])
-  report         ServiceReport? @relation(fields: [reportId], references: [id])
-  tasks          TicketTask[]
-  expenses       TicketExpense[]
-  commission     Commission?
-  @@index([clientId])
-  @@map("tickets")
-}
-
-enum Priority {
-  BAJA
-  MEDIA
-  ALTA
-  CRITICA
-}
-
-enum TicketStatus {
-  NUEVO
-  EN_EJECUCION
-  POR_CONFIRMACION
-  PENDIENTE_WILSON
-  POR_FACTURACION
-  CERRADO
-}
-
-model TicketTask {
-  id        String   @id @default(uuid())
-  ticketId  String   @map("ticket_id")
-  title     String
-  done      Boolean  @default(false)
-  order     Int      @default(0)
-  createdAt DateTime @default(now()) @map("created_at")
-  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  @@map("ticket_tasks")
-}
-
-model TicketExpense {
-  id              String   @id @default(uuid())
-  ticketId        String   @map("ticket_id")
-  date            DateTime
-  description     String
-  supplier        String?
-  supplierInvoice String?  @map("supplier_invoice")
-  quantity        Float    @default(1)
-  unitPrice       Float    @map("unit_price")
-  total           Float
-  createdAt       DateTime @default(now()) @map("created_at")
-  ticket          Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  @@map("ticket_expenses")
-}
-
-model Commission {
-  id          String           @id @default(uuid())
-  ticketId    String           @unique @map("ticket_id")
-  userId      String           @map("user_id")
-  amount      Float
-  percentage  Float            @default(10)
-  status      CommissionStatus @default(PENDIENTE)
-  paidAt      DateTime?        @map("paid_at")
-  notes       String?
-  createdAt   DateTime         @default(now()) @map("created_at")
-  ticket      Ticket           @relation(fields: [ticketId], references: [id])
-  user        User             @relation(fields: [userId], references: [id])
-  @@map("commissions")
-}
-
-enum CommissionStatus {
-  PENDIENTE
-  PAGADA
-}
-
-model Alert {
-  id        String    @id @default(uuid())
-  clientId  String?   @map("client_id")
-  assetId   String?   @map("asset_id")
-  type      AlertType
-  message   String
-  dueDate   DateTime? @map("due_date")
-  isRead    Boolean   @default(false) @map("is_read")
-  createdAt DateTime  @default(now()) @map("created_at")
-  client    Client?   @relation(fields: [clientId], references: [id])
-  asset     Asset?    @relation(fields: [assetId], references: [id])
-  @@map("alerts")
-}
-
-enum AlertType {
-  GARANTIA
-  MANTENIMIENTO
-  TICKET
-}
-
-model ActivityLog {
-  id         String   @id @default(uuid())
-  userId     String?  @map("user_id")
-  action     String
-  entityType String?  @map("entity_type")
-  entityId   String?  @map("entity_id")
-  ipAddress  String?  @map("ip_address")
-  meta       Json?
-  createdAt  DateTime @default(now()) @map("created_at")
-  user       User?    @relation(fields: [userId], references: [id])
-  @@map("activity_logs")
-}
-
-model Attachment {
-  id         String         @id @default(uuid())
-  entityType AttachmentType @map("entity_type")
-  entityId   String         @map("entity_id")
-  filename   String
-  url        String
-  mimeType   String?        @map("mime_type")
-  size       Int?
-  createdAt  DateTime       @default(now()) @map("created_at")
-  @@map("attachments")
-}
-
-enum AttachmentType {
-  ASSET
-  MAINTENANCE
-  REPORT
-  TICKET
+  async exportExcel() {
+    const assets = await this.prisma.asset.findMany({
+      include: { client: { select: { businessName: true } }, assetType: { select: { name: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const ExcelJS = require('exceljs');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Activos');
+    ws.columns = [
+      { header: 'Nombre', key: 'name', width: 30 },
+      { header: 'Tipo', key: 'type', width: 20 },
+      { header: 'Cliente', key: 'client', width: 30 },
+      { header: 'Marca', key: 'brand', width: 15 },
+      { header: 'Modelo', key: 'model', width: 15 },
+      { header: 'Serial', key: 'serial', width: 20 },
+      { header: 'Código', key: 'code', width: 18 },
+      { header: 'Estado', key: 'status', width: 15 },
+      { header: 'Ubicación', key: 'location', width: 20 },
+    ];
+    ws.getRow(1).font = { bold: true };
+    assets.forEach((a: any) => ws.addRow({
+      name: a.name, type: a.assetType?.name || '', client: a.client?.businessName || '',
+      brand: a.brand || '', model: a.model || '', serial: a.serialNumber || '',
+      code: a.inventoryCode || '', status: a.status, location: a.location || '',
+    }));
+    return wb.xlsx.writeBuffer();
+  }
 }
