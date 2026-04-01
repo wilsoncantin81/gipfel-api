@@ -91,14 +91,7 @@ model Asset {
   remoteAccess             String?     @map("remote_access")
   extraFields              Json?       @map("extra_fields")
   dynFields                Json?       @map("dyn_fields")
-  supplier              String?
-assignedUser          String?      @map("assigned_user")
-responsible           String?
-ipAddress             String?      @map("ip_address")
-macAddress            String?      @map("mac_address")
-remoteAccess          String?      @map("remote_access")
-extraFields           Json?        @map("extra_fields")
-createdAt                DateTime    @default(now()) @map("created_at")
+  createdAt                DateTime    @default(now()) @map("created_at")
   updatedAt                DateTime    @updatedAt @map("updated_at")
   client                   Client      @relation(fields: [clientId], references: [id])
   assetType                AssetType   @relation(fields: [assetTypeId], references: [id])
