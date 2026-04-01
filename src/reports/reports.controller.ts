@@ -1,25 +1,29 @@
-import { Controller, Get, Post, Param, Body, UseGuards, Res, Header } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
-import { Response } from 'express';
-import { ReportsService } from './reports.service';
-
-@ApiTags('Reports')
-@ApiBearerAuth()
-@UseGuards(AuthGuard('jwt'))
-@Controller('reports')
-export class ReportsController {
-  constructor(private readonly service: ReportsService) {}
-
-  @Get() findAll(@Body() q: any) { return this.service.findAll(q || {}); }
-  @Get(':id') findOne(@Param('id') id: string) { return this.service.findOne(id); }
-  @Post() create(@Body() dto: any) { return this.service.create(dto); }
-  @Post(':id/signature') saveSignature(@Param('id') id: string, @Body() body: any) { return this.service.saveSignature(id, body.signature); }
-
-  @Get(':id/pdf')
-  @Header('Content-Type', 'application/pdf')
-  @Header('Content-Disposition', 'attachment; filename=reporte.pdf')
-  async getPDF(@Param('id') id: string, @Res() res: Response) { res.send(await this.service.getPDF(id)); }
-
-  @Post(':id/send') sendEmail(@Param('id') id: string) { return this.service.sendEmail(id); }
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../common/prisma.service';
+ 
+@Injectable()
+export class AssetTypesService {
+  constructor(private prisma: PrismaService) {}
+ 
+  findAll() {
+    return this.prisma.assetType.findMany({
+      where: { isActive: true },
+      orderBy: { name: 'asc' },
+      include: { _count: { select: { assets: true } } },
+    });
+  }
+ 
+  create(dto: any) {
+    const { name, icon, description } = dto;
+    return this.prisma.assetType.create({ data: { name, icon, description } });
+  }
+ 
+  update(id: string, dto: any) {
+    const { name, icon, description } = dto;
+    return this.prisma.assetType.update({ where: { id }, data: { name, icon, description } });
+  }
+ 
+  remove(id: string) {
+    return this.prisma.assetType.update({ where: { id }, data: { isActive: false } });
+  }
 }
