@@ -12,15 +12,26 @@ export class MaintenanceService {
     if (q.type) where.type = q.type;
     return this.prisma.maintenanceRecord.findMany({
       where,
-      include: { asset: { include: { client: true, assetType: true } }, technician: { select: { id: true, name: true } } },
+      include: {
+        asset: { include: { client: true, assetType: true } },
+        technician: { select: { id: true, name: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
 
   async create(dto: any) {
-    const { assetId, technicianId, type, description, findings, nextDate, cost } = dto;
+    const { assetId, technicianId, type, description, findings, nextDate, cost, workDone, date } = dto;
     const record = await this.prisma.maintenanceRecord.create({
-      data: { assetId, technicianId: technicianId || undefined, type, description, findings, nextDate: nextDate ? new Date(nextDate) : undefined, cost: cost ? Number(cost) : undefined },
+      data: {
+        assetId,
+        technicianId: technicianId || undefined,
+        type,
+        description: description || workDone || 'Mantenimiento',
+        findings: findings || undefined,
+        nextDate: nextDate ? new Date(nextDate) : undefined,
+        cost: cost ? Number(cost) : undefined,
+      },
       include: { asset: true, technician: { select: { id: true, name: true } } },
     });
     if (nextDate) {
@@ -57,8 +68,11 @@ export class MaintenanceService {
     ws.getRow(1).font = { bold: true };
     records.forEach((r: any) => ws.addRow({
       date: r.createdAt.toLocaleDateString('es-CO'),
-      asset: r.asset?.name || '', client: r.asset?.client?.businessName || '',
-      type: r.type, desc: r.description, tech: r.technician?.name || '',
+      asset: r.asset?.name || '',
+      client: r.asset?.client?.businessName || '',
+      type: r.type,
+      desc: r.description,
+      tech: r.technician?.name || '',
       cost: r.cost || 0,
     }));
     return wb.xlsx.writeBuffer();
