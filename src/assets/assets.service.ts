@@ -30,9 +30,9 @@ export class AssetsService {
 
   private sanitize(dto: any) {
     return {
-      name: dto.name,
       clientId: dto.clientId,
       assetTypeId: dto.assetTypeId,
+      name: dto.name,
       brand: dto.brand || undefined,
       model: dto.model || undefined,
       serialNumber: dto.serialNumber || dto.serial || undefined,
@@ -51,21 +51,20 @@ export class AssetsService {
       ipAddress: dto.ipAddress || undefined,
       macAddress: dto.macAddress || undefined,
       remoteAccess: dto.remoteAccess || undefined,
-      extraFields: dto.extraFields || undefined,
-      dynFields: dto.dynFields || undefined,
+      extraFields: dto.extraFields ? (Array.isArray(dto.extraFields) ? dto.extraFields : []) : undefined,
     };
   }
 
   async create(dto: any) {
-    const data = this.sanitize(dto);
-    return this.prisma.asset.create({ data, include: { client: true, assetType: true } });
+    return this.prisma.asset.create({
+      data: this.sanitize(dto) as any,
+      include: { client: true, assetType: true },
+    });
   }
 
   async update(id: string, dto: any) {
-    const data = this.sanitize(dto);
-    delete data.clientId;
-    delete data.assetTypeId;
-    return this.prisma.asset.update({ where: { id }, data, include: { client: true, assetType: true } });
+    const { clientId, assetTypeId, ...rest } = this.sanitize(dto);
+    return this.prisma.asset.update({ where: { id }, data: rest as any, include: { client: true, assetType: true } });
   }
 
   async remove(id: string) {
@@ -76,8 +75,9 @@ export class AssetsService {
   async getPassword(id: string) {
     const a = await this.prisma.asset.findUnique({ where: { id } });
     if (!a?.encryptedPassword) return { password: null };
-    try { return { password: Buffer.from(a.encryptedPassword, 'base64').toString('utf8') }; }
-    catch { return { password: a.encryptedPassword }; }
+    try {
+      return { password: Buffer.from(a.encryptedPassword, 'base64').toString('utf8') };
+    } catch { return { password: a.encryptedPassword }; }
   }
 
   async getQR(id: string) {
@@ -106,14 +106,12 @@ export class AssetsService {
       { header: 'Código', key: 'code', width: 18 },
       { header: 'Estado', key: 'status', width: 15 },
       { header: 'Ubicación', key: 'location', width: 20 },
-      { header: 'IP', key: 'ip', width: 15 },
     ];
     ws.getRow(1).font = { bold: true };
     assets.forEach((a: any) => ws.addRow({
       name: a.name, type: a.assetType?.name || '', client: a.client?.businessName || '',
       brand: a.brand || '', model: a.model || '', serial: a.serialNumber || '',
       code: a.inventoryCode || '', status: a.status, location: a.location || '',
-      ip: a.ipAddress || '',
     }));
     return wb.xlsx.writeBuffer();
   }
