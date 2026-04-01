@@ -28,7 +28,7 @@ export class MaintenanceService {
         technicianId: technicianId || undefined,
         type,
         description: description || workDone || 'Mantenimiento',
-        findings: findings || undefined,
+        findings: findings || workDone || undefined,
         nextDate: nextDate ? new Date(nextDate) : undefined,
         cost: cost ? Number(cost) : undefined,
       },
