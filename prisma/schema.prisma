@@ -74,7 +74,7 @@ model Asset {
   brand            String?
   model            String?
   serialNumber     String?     @unique @map("serial_number")
-  inventoryCode    String?     @unique @map("inventory_code")
+  inventoryCode    String?     @map("inventory_code")
   purchaseDate     DateTime?   @map("purchase_date")
   warrantyUntil    DateTime?   @map("warranty_until")
   location         String?
@@ -83,6 +83,13 @@ model Asset {
   encryptedPassword String?    @map("encrypted_password")
   nextMaintenance  DateTime?   @map("next_maintenance")
   maintenanceFrequencyDays Int? @map("maintenance_frequency_days")
+  supplier         String?
+  assignedUser     String?     @map("assigned_user")
+  responsible      String?
+  ipAddress        String?     @map("ip_address")
+  macAddress       String?     @map("mac_address")
+  remoteAccess     String?     @map("remote_access")
+  extraFields      Json?       @map("extra_fields")
   createdAt        DateTime    @default(now()) @map("created_at")
   updatedAt        DateTime    @updatedAt @map("updated_at")
   client           Client      @relation(fields: [clientId], references: [id])
