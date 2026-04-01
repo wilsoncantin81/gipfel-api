@@ -3,6 +3,11 @@ import { PrismaService } from '../common/prisma.service';
 import * as path from 'path';
 import * as fs from 'fs';
 
+const TYPE_MAP: Record<string, string> = {
+  asset: 'ASSET', maintenance: 'MAINTENANCE', report: 'REPORT', ticket: 'TICKET',
+  ASSET: 'ASSET', MAINTENANCE: 'MAINTENANCE', REPORT: 'REPORT', TICKET: 'TICKET',
+};
+
 @Injectable()
 export class FilesService {
   constructor(private prisma: PrismaService) {}
@@ -13,13 +18,15 @@ export class FilesService {
     const filename = `${Date.now()}-${file.originalname}`;
     const filepath = path.join(uploadDir, filename);
     fs.writeFileSync(filepath, file.buffer);
+    const mappedType = TYPE_MAP[entityType] || 'ASSET';
     return this.prisma.attachment.create({
-      data: { entityType: entityType as any, entityId, filename: file.originalname, url: `/uploads/${filename}`, mimeType: file.mimetype, size: file.size },
+      data: { entityType: mappedType as any, entityId, filename: file.originalname, url: `/uploads/${filename}`, mimeType: file.mimetype, size: file.size },
     });
   }
 
   async getFiles(entityType: string, entityId: string) {
-    return this.prisma.attachment.findMany({ where: { entityType: entityType as any, entityId } });
+    const mappedType = TYPE_MAP[entityType] || 'ASSET';
+    return this.prisma.attachment.findMany({ where: { entityType: mappedType as any, entityId } });
   }
 
   async deleteFile(id: string) {
