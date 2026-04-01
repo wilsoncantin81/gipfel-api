@@ -11,7 +11,11 @@ export class ReportsService {
     if (q.technicianId) where.technicianId = q.technicianId;
     return this.prisma.serviceReport.findMany({
       where,
-      include: { client: { select: { id: true, businessName: true } }, technician: { select: { id: true, name: true } } },
+      include: {
+        client: { select: { id: true, businessName: true } },
+        technician: { select: { id: true, name: true } },
+        assets: { include: { asset: { include: { assetType: true } } } },
+      },
       orderBy: { date: 'desc' },
     });
   }
@@ -19,21 +23,33 @@ export class ReportsService {
   async findOne(id: string) {
     return this.prisma.serviceReport.findUnique({
       where: { id },
-      include: { client: true, technician: { select: { id: true, name: true } }, assets: { include: { asset: { include: { assetType: true } } } } },
+      include: {
+        client: true,
+        technician: { select: { id: true, name: true } },
+        assets: { include: { asset: { include: { assetType: true } } } },
+      },
     });
   }
 
   async create(dto: any) {
     const count = await this.prisma.serviceReport.count();
     const reportNumber = `RPT-${String(count + 1).padStart(5, '0')}`;
-    const { assetIds, ...data } = dto;
+    const { assetIds, observations, conclusion, timeUsed, signatureUrl, ...data } = dto;
+    
     const report = await this.prisma.serviceReport.create({
       data: {
-        ...data,
         reportNumber,
-        date: new Date(data.date),
+        clientId: data.clientId,
         technicianId: data.technicianId || undefined,
-        assets: assetIds?.length ? { create: assetIds.map((assetId: string) => ({ assetId })) } : undefined,
+        date: new Date(data.date),
+        serviceType: data.serviceType,
+        description: data.description,
+        workDone: observations || undefined,
+        recommendations: conclusion || undefined,
+        clientSignature: signatureUrl || undefined,
+        assets: assetIds?.length
+          ? { create: assetIds.map((a: any) => ({ assetId: typeof a === 'string' ? a : a.id })) }
+          : undefined,
       },
       include: { client: true, technician: { select: { id: true, name: true } } },
     });
