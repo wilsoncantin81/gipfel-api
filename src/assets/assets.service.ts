@@ -27,15 +27,36 @@ export class AssetsService {
     });
   }
 
+  private sanitize(dto: any) {
+    return {
+      clientId: dto.clientId,
+      assetTypeId: dto.assetTypeId,
+      name: dto.name,
+      brand: dto.brand || undefined,
+      model: dto.model || undefined,
+      serialNumber: dto.serialNumber || dto.serial || undefined,
+      inventoryCode: dto.inventoryCode || dto.code || undefined,
+      purchaseDate: dto.purchaseDate ? new Date(dto.purchaseDate) : undefined,
+      warrantyUntil: dto.warrantyUntil ? new Date(dto.warrantyUntil) : undefined,
+      location: dto.location || undefined,
+      status: dto.status || 'ACTIVO',
+      notes: dto.notes || undefined,
+      encryptedPassword: dto.password ? Buffer.from(dto.password).toString('base64') : undefined,
+      nextMaintenance: dto.nextMaintenance ? new Date(dto.nextMaintenance) : undefined,
+      maintenanceFrequencyDays: dto.maintenanceFrequencyDays ? Number(dto.maintenanceFrequencyDays) : undefined,
+    };
+  }
+
   async create(dto: any) {
     return this.prisma.asset.create({
-      data: dto,
+      data: this.sanitize(dto),
       include: { client: true, assetType: true },
     });
   }
 
   async update(id: string, dto: any) {
-    return this.prisma.asset.update({ where: { id }, data: dto, include: { client: true, assetType: true } });
+    const { clientId, assetTypeId, ...rest } = this.sanitize(dto);
+    return this.prisma.asset.update({ where: { id }, data: rest, include: { client: true, assetType: true } });
   }
 
   async remove(id: string) {
@@ -75,6 +96,7 @@ export class AssetsService {
       { header: 'Marca', key: 'brand', width: 15 },
       { header: 'Modelo', key: 'model', width: 15 },
       { header: 'Serial', key: 'serial', width: 20 },
+      { header: 'Código inventario', key: 'code', width: 18 },
       { header: 'Estado', key: 'status', width: 15 },
       { header: 'Ubicación', key: 'location', width: 20 },
     ];
@@ -82,7 +104,7 @@ export class AssetsService {
     assets.forEach((a: any) => ws.addRow({
       name: a.name, type: a.assetType?.name || '', client: a.client?.businessName || '',
       brand: a.brand || '', model: a.model || '', serial: a.serialNumber || '',
-      status: a.status, location: a.location || '',
+      code: a.inventoryCode || '', status: a.status, location: a.location || '',
     }));
     return wb.xlsx.writeBuffer();
   }
