@@ -55,10 +55,21 @@ export class TicketsService {
   async create(dto: any) {
     const count = await this.prisma.ticket.count();
     const ticketNumber = `TKT-${String(count + 1).padStart(5, '0')}`;
-    return this.prisma.ticket.create({
-      data: { ...dto, ticketNumber },
-      include: { client: true },
-    });
+    const { tasks, ...rest } = dto;
+    const data: any = {
+      ticketNumber,
+      clientId: rest.clientId,
+      title: rest.title,
+      description: rest.description || undefined,
+      priority: rest.priority || 'MEDIA',
+      status: 'NUEVO',
+      assetId: rest.assetId || undefined,
+      assignedToId: rest.assignedToId || undefined,
+    };
+    if (tasks && tasks.length > 0) {
+      data.tasks = { create: tasks.map((title: string, i: number) => ({ title, order: i })) };
+    }
+    return this.prisma.ticket.create({ data, include: { client: true } });
   }
 
   async update(id: string, dto: any) {
