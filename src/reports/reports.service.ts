@@ -107,10 +107,5 @@ async sendEmail(id: string) {
   await this.prisma.serviceReport.update({ where: { id }, data: { emailSent: true } });
   return { sent: true };
 }
-```
-
-Luego en Railway → Variables → agrega:
-```
-RESEND_API_KEY=re_xxxx (re_E9twQL9b_PQqYoVrfCUFMbdCxMkbWbQZA)
-  
+ 
 }
