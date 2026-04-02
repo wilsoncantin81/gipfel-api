@@ -160,7 +160,7 @@ export class ReportsService {
     const infos2 = [
       ['Cliente', client?.businessName || '–'],
       ['Técnico', technician?.name || '–'],
-      ['Contacto', client?.contactName || client?.email || '–'],
+      ['Recibe', client?.contactName || '–'],
     ];
 
     infos2.forEach(([label, value], i) => {
@@ -252,8 +252,9 @@ export class ReportsService {
     doc.rect(margin, y + 62, sigW, 18).fill(lightGray);
     doc.fillColor(blue).fontSize(8).font('Helvetica-Bold')
       .text('FIRMA CLIENTE', margin + 4, y + 67, { width: sigW - 8 });
+    const receiverName = client?.contactName || client?.businessName || '–';
     doc.fillColor(darkGray).fontSize(8).font('Helvetica')
-      .text(client?.businessName || '–', margin + 4, y + 78, { width: sigW - 8 });
+      .text(receiverName, margin + 4, y + 78, { width: sigW - 8 });
 
     // Technician signature
     const tx2 = margin + sigW + 20;
@@ -323,6 +324,9 @@ export class ReportsService {
         <tr>
           <td style="padding:8px;background:white"><strong style="color:#0A4F8C">Cliente:</strong><br>${client?.businessName||'–'}</td>
           <td style="padding:8px;background:#f5f5f5"><strong style="color:#0A4F8C">Técnico:</strong><br>${technician?.name||'–'}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px;background:#f5f5f5" colspan="2"><strong style="color:#0A4F8C">Persona que recibe:</strong> ${client?.contactName||'–'}</td>
         </tr>
       </table>
 
