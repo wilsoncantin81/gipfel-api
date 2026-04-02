@@ -180,7 +180,6 @@ export class ReportsService {
     };
 
     const field = (text: string) => {
-      doc.rect(margin, y, cw, 'auto' as any).fill(lightGray);
       const textH = doc.heightOfString(text, { width: cw - 16 });
       const h = Math.max(textH + 12, 24);
       doc.rect(margin, y, cw, h).fill(lightGray).stroke('#DDDDDD');
