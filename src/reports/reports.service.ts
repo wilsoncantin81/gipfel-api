@@ -1,107 +1,57 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../common/prisma.service';
-
-@Injectable()
-export class ReportsService {
-  constructor(private prisma: PrismaService) {}
-
-  async findAll(q: any) {
-    const where: any = {};
-    if (q.clientId) where.clientId = q.clientId;
-    if (q.technicianId) where.technicianId = q.technicianId;
-    return this.prisma.serviceReport.findMany({
-      where,
-      include: {
-        client: { select: { id: true, businessName: true } },
-        technician: { select: { id: true, name: true } },
-        assets: { include: { asset: { include: { assetType: true } } } },
-      },
-      orderBy: { date: 'desc' },
-    });
-  }
-
-  async findOne(id: string) {
-    return this.prisma.serviceReport.findUnique({
-      where: { id },
-      include: {
-        client: true,
-        technician: { select: { id: true, name: true } },
-        assets: { include: { asset: { include: { assetType: true } } } },
-      },
-    });
-  }
-
-  async create(dto: any) {
-    const count = await this.prisma.serviceReport.count();
-    const reportNumber = `RPT-${String(count + 1).padStart(5, '0')}`;
-    const { assetIds, observations, conclusion, timeUsed, signatureUrl, ...data } = dto;
-    
-    const report = await this.prisma.serviceReport.create({
-      data: {
-        reportNumber,
-        clientId: data.clientId,
-        technicianId: data.technicianId || undefined,
-        date: new Date(data.date),
-        serviceType: data.serviceType,
-        description: data.description,
-        workDone: observations || undefined,
-        recommendations: conclusion || undefined,
-        clientSignature: signatureUrl || undefined,
-        assets: assetIds?.length
-          ? { create: assetIds.map((a: any) => ({ assetId: typeof a === 'string' ? a : a.id })) }
-          : undefined,
-      },
-      include: { client: true, technician: { select: { id: true, name: true } } },
-    });
-    return report;
-  }
-
-  async saveSignature(id: string, signature: string) {
-    return this.prisma.serviceReport.update({ where: { id }, data: { clientSignature: signature } });
-  }
-
-  async getPDF(id: string) {
-    const report = await this.findOne(id);
-    if (!report) throw new Error('Report not found');
-    const PDFDocument = require('pdfkit');
-    const doc = new PDFDocument({ margin: 50 });
-    const chunks: Buffer[] = [];
-    doc.on('data', (c: Buffer) => chunks.push(c));
-    doc.fontSize(20).text('Reporte de Servicio', { align: 'center' });
-    doc.moveDown();
-    doc.fontSize(12).text(`N° Reporte: ${report.reportNumber}`);
-    doc.text(`Fecha: ${new Date(report.date).toLocaleDateString('es-CO')}`);
-    doc.text(`Cliente: ${(report as any).client?.businessName || ''}`);
-    doc.text(`Técnico: ${(report as any).technician?.name || ''}`);
-    doc.moveDown();
-    doc.text(`Descripción: ${report.description}`);
-    if (report.workDone) doc.text(`Trabajo realizado: ${report.workDone}`);
-    if (report.recommendations) doc.text(`Recomendaciones: ${report.recommendations}`);
-    doc.end();
-    return new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
-  }
-
-  async sendEmail(id: string) {
-    const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT) || 465,
-  secure: true,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-  tls: {
-    rejectUnauthorized: false,
-  },
-});
-    const client = (report as any).client;
-    if (!client?.email) throw new Error('Cliente sin email');
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM, to: client.email,
-      subject: `Reporte de Servicio ${report.reportNumber}`,
-      html: `<h2>Reporte ${report.reportNumber}</h2><p>Fecha: ${new Date(report.date).toLocaleDateString('es-CO')}</p><p>${report.description}</p>`,
-    });
-    await this.prisma.serviceReport.update({ where: { id }, data: { emailSent: true } });
-    return { sent: true };
-  }
-}
+builder
+RUN npm run build
+4s
+> gipfel-it-api@3.0.0 build
+> nest build
+src/reports/reports.service.ts:85:25 - error TS2552: Cannot find name 'nodemailer'. Did you mean 'NodeFilter'?
+85     const transporter = nodemailer.createTransport({
+                           ~~~~~~~~~~
+  node_modules/typescript/lib/lib.dom.d.ts:2557:13
+    2557 declare var NodeFilter: {
+                     ~~~~~~~~~~
+    'NodeFilter' is declared here.
+src/reports/reports.service.ts:97:21 - error TS2552: Cannot find name 'report'. Did you mean 'Report'?
+97     const client = (report as any).client;
+                       ~~~~~~
+  node_modules/typescript/lib/lib.dom.d.ts:26060:13
+    26060 declare var Report: {
+                      ~~~~~~
+    'Report' is declared here.
+src/reports/reports.service.ts:101:39 - error TS2552: Cannot find name 'report'. Did you mean 'Report'?
+101       subject: `Reporte de Servicio ${report.reportNumber}`,
+                                          ~~~~~~
+  node_modules/typescript/lib/lib.dom.d.ts:26060:13
+    26060 declare var Report: {
+                      ~~~~~~
+    'Report' is declared here.
+src/reports/reports.service.ts:102:28 - error TS2552: Cannot find name 'report'. Did you mean 'Report'?
+102       html: `<h2>Reporte ${report.reportNumber}</h2><p>Fecha: ${new Date(report.date).toLocaleDateString('es-CO')}</p><p>${report.description}</p>`,
+                               ~~~~~~
+  node_modules/typescript/lib/lib.dom.d.ts:26060:13
+    26060 declare var Report: {
+                      ~~~~~~
+    'Report' is declared here.
+src/reports/reports.service.ts:102:74 - error TS2552: Cannot find name 'report'. Did you mean 'Report'?
+102       html: `<h2>Reporte ${report.reportNumber}</h2><p>Fecha: ${new Date(report.date).toLocaleDateString('es-CO')}</p><p>${report.description}</p>`,
+                                                                             ~~~~~~
+  node_modules/typescript/lib/lib.dom.d.ts:26060:13
+    26060 declare var Report: {
+                      ~~~~~~
+    'Report' is declared here.
+src/reports/reports.service.ts:102:124 - error TS2552: Cannot find name 'report'. Did you mean 'Report'?
+102       html: `<h2>Reporte ${report.reportNumber}</h2><p>Fecha: ${new Date(report.date).toLocaleDateString('es-CO')}</p><p>${report.description}</p>`,
+                                                                                                                               ~~~~~~
+  node_modules/typescript/lib/lib.dom.d.ts:26060:13
+    26060 declare var Report: {
+                      ~~~~~~
+    'Report' is declared here.
+Found 6 error(s).
+Dockerfile:10
+-------------------
+8 |     RUN dos2unix prisma/schema.prisma
+9 |     RUN npx prisma generate
+10 | >>> RUN npm run build
+11 |     FROM node:20-slim AS runner
+12 |     WORKDIR /app
+-------------------
+ERROR: failed to build: failed to solve: process "/bin/sh -c npm run build" did not complete successfully: exit code: 1
