@@ -94,7 +94,7 @@ export class ReportsService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Gipfel IT <onboarding@resend.dev>',
+        from: 'Gipfel IT <soporte@grupogipfel.com>',
         to: recipient,
         subject: `Reporte de Servicio ${rpt.reportNumber}`,
         html: `<h2>Reporte ${rpt.reportNumber}</h2><p><strong>Cliente:</strong> ${client?.businessName || ''}</p><p><strong>Fecha:</strong> ${new Date(rpt.date).toLocaleDateString('es-CO')}</p><p><strong>Descripción:</strong> ${rpt.description}</p>${rpt.workDone ? `<p><strong>Trabajo realizado:</strong> ${rpt.workDone}</p>` : ''}${rpt.recommendations ? `<p><strong>Recomendaciones:</strong> ${rpt.recommendations}</p>` : ''}`,
