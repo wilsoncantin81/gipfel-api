@@ -79,30 +79,38 @@ export class ReportsService {
     doc.end();
     return new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
   }
-
-  async sendEmail(id: string) {
-    const rpt = await this.findOne(id);
-    if (!rpt) throw new Error('Report not found');
-    const nodemailer = require('nodemailer');
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT) || 587,
-      secure: false,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-      tls: { rejectUnauthorized: false },
-    });
-    const client = (rpt as any).client;
-    if (!client?.email) throw new Error('Cliente sin email');
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM,
+async sendEmail(id: string) {
+  const rpt = await this.findOne(id);
+  if (!rpt) throw new Error('Report not found');
+  const client = (rpt as any).client;
+  if (!client?.email) throw new Error('Cliente sin email');
+  
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: 'Gipfel IT <onboarding@resend.dev>',
       to: client.email,
       subject: `Reporte de Servicio ${rpt.reportNumber}`,
       html: `<h2>Reporte ${rpt.reportNumber}</h2><p>Fecha: ${new Date(rpt.date).toLocaleDateString('es-CO')}</p><p>${rpt.description}</p>`,
-    });
-    await this.prisma.serviceReport.update({ where: { id }, data: { emailSent: true } });
-    return { sent: true };
+    }),
+  });
+  
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Error enviando correo: ${err}`);
   }
+  
+  await this.prisma.serviceReport.update({ where: { id }, data: { emailSent: true } });
+  return { sent: true };
+}
+```
+
+Luego en Railway → Variables → agrega:
+```
+RESEND_API_KEY=re_xxxx (re_E9twQL9b_PQqYoVrfCUFMbdCxMkbWbQZA)
+  
 }
