@@ -29,6 +29,7 @@
     "qrcode": "^1.5.0",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.0"
+    "basic-ftp": "^5.0.5",
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",
