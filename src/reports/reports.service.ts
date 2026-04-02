@@ -34,7 +34,7 @@ export class ReportsService {
   async create(dto: any) {
     const count = await this.prisma.serviceReport.count();
     const reportNumber = `RPT-${String(count + 1).padStart(5, '0')}`;
-    const { assetIds, observations, conclusion, timeUsed, signatureUrl, ...data } = dto;
+    const { assetIds, observations, conclusion, signatureUrl, ...data } = dto;
     const rpt = await this.prisma.serviceReport.create({
       data: {
         reportNumber,
@@ -79,33 +79,34 @@ export class ReportsService {
     doc.end();
     return new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
   }
-async sendEmail(id: string) {
-  const rpt = await this.findOne(id);
-  if (!rpt) throw new Error('Report not found');
-  const client = (rpt as any).client;
-  if (!client?.email) throw new Error('Cliente sin email');
-  
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: 'Gipfel IT <onboarding@resend.dev>',
-      to: client.email,
-      subject: `Reporte de Servicio ${rpt.reportNumber}`,
-      html: `<h2>Reporte ${rpt.reportNumber}</h2><p>Fecha: ${new Date(rpt.date).toLocaleDateString('es-CO')}</p><p>${rpt.description}</p>`,
-    }),
-  });
-  
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Error enviando correo: ${err}`);
+
+  async sendEmail(id: string, toEmail?: string) {
+    const rpt = await this.findOne(id);
+    if (!rpt) throw new Error('Report not found');
+    const client = (rpt as any).client;
+    const recipient = toEmail || client?.email;
+    if (!recipient) throw new Error('No hay correo destinatario');
+
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Gipfel IT <onboarding@resend.dev>',
+        to: recipient,
+        subject: `Reporte de Servicio ${rpt.reportNumber}`,
+        html: `<h2>Reporte ${rpt.reportNumber}</h2><p><strong>Cliente:</strong> ${client?.businessName || ''}</p><p><strong>Fecha:</strong> ${new Date(rpt.date).toLocaleDateString('es-CO')}</p><p><strong>Descripción:</strong> ${rpt.description}</p>${rpt.workDone ? `<p><strong>Trabajo realizado:</strong> ${rpt.workDone}</p>` : ''}${rpt.recommendations ? `<p><strong>Recomendaciones:</strong> ${rpt.recommendations}</p>` : ''}`,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`Error enviando correo: ${err}`);
+    }
+
+    await this.prisma.serviceReport.update({ where: { id }, data: { emailSent: true } });
+    return { sent: true, to: recipient };
   }
-  
-  await this.prisma.serviceReport.update({ where: { id }, data: { emailSent: true } });
-  return { sent: true };
-}
- 
 }
