@@ -19,7 +19,10 @@ export class AssetsService {
     const where: any = {};
     if (q.clientId) where.clientId = q.clientId;
     if (q.status) where.status = q.status;
-    if (q.assetTypeId) where.assetTypeId = q.assetTypeId;
+    if (q.assetTypeId) {
+      const ids = Array.isArray(q.assetTypeId) ? q.assetTypeId : [q.assetTypeId];
+      where.assetTypeId = ids.length === 1 ? ids[0] : { in: ids };
+    }
     if (q.search) where.OR = [
       { name: { contains: q.search, mode: 'insensitive' } },
       { inventoryCode: { contains: q.search, mode: 'insensitive' } },
