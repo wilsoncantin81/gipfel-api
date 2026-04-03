@@ -15,7 +15,7 @@ export class ReportsController {
   @Get(':id') findOne(@Param('id') id: string) { return this.service.findOne(id); }
   @Post() create(@Body() dto: any) { return this.service.create(dto); }
   @Post(':id/signature') saveSignature(@Param('id') id: string, @Body() body: any) { return this.service.saveSignature(id, body.signature); }
-  @Post(':id/send') sendEmail(@Param('id') id: string, @Body() body: any) { return this.service.sendEmail(id, body?.email); }
+  @Post(':id/send') sendEmail(@Param('id') id: string, @Body() body: any) { return this.service.sendEmail(id, body?.email, body?.cc); }
 
   @Get(':id/pdf')
   @Header('Content-Type', 'application/pdf')
