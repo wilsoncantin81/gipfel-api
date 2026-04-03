@@ -319,9 +319,9 @@ export class ReportsService {
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
 <body style="font-family:Arial,sans-serif;margin:0;padding:0;background:#f4f4f4">
   <div style="max-width:600px;margin:20px auto;background:white;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)">
-    <div style="background:#0A4F8C;padding:24px;text-align:center">
-      <img src="${COMPANY.logoUrl}" style="height:60px;margin-bottom:8px" onerror="this.style.display='none'">
-      <h1 style="color:white;margin:0;font-size:18px">Reporte de Servicio Técnico</h1>
+    <div style="background:#ffffff;padding:24px;text-align:center;border-bottom:3px solid #00AEEF">
+      <img src="${COMPANY.logoUrl}" style="height:70px;margin-bottom:12px" onerror="this.style.display='none'">
+      <h1 style="color:#0A4F8C;margin:0;font-size:18px;font-weight:bold">Reporte de Servicio Técnico</h1>
     </div>
     <div style="background:#00AEEF;padding:10px 24px;text-align:center">
       <span style="color:white;font-weight:bold;font-size:16px">${rpt.reportNumber}</span>
