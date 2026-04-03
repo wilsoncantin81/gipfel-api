@@ -254,43 +254,52 @@ export class ReportsService {
       y += 8;
     }
 
-    // Signatures
+    // Signatures - check if we need new page
+    const sigSectionH = 140; // section title + boxes + footer
+    if (y + sigSectionH > 750) {
+      doc.addPage();
+      y = 50;
+    }
+
     y += 10;
     section('Firmas');
 
     const sigW = cw / 2 - 10;
 
-    // Client signature
-    doc.rect(margin, y, sigW, 80).stroke('#CCCCCC');
+    // Client signature box
+    doc.rect(margin, y, sigW, 70).stroke('#CCCCCC');
     if (rpt.clientSignature) {
       try {
         const sigData = rpt.clientSignature.replace(/^data:image\/\w+;base64,/, '');
         const sigBuffer = Buffer.from(sigData, 'base64');
-        doc.image(sigBuffer, margin + 5, y + 5, { fit: [sigW - 10, 60] });
+        doc.image(sigBuffer, margin + 5, y + 5, { fit: [sigW - 10, 55] });
       } catch {}
     }
-    doc.rect(margin, y + 62, sigW, 18).fill(lightGray);
-    doc.fillColor(blue).fontSize(8).font('Helvetica-Bold')
-      .text('FIRMA CLIENTE', margin + 4, y + 67, { width: sigW - 8 });
+    doc.rect(margin, y + 70, sigW, 30).fill(lightGray).stroke('#CCCCCC');
+    doc.fillColor(blue).fontSize(7).font('Helvetica-Bold')
+      .text('FIRMA CLIENTE', margin + 4, y + 74, { width: sigW - 8 });
     const receiverName = (rpt as any).receivedBy || client?.contactName || client?.businessName || '–';
     doc.fillColor(darkGray).fontSize(8).font('Helvetica')
-      .text(receiverName, margin + 4, y + 78, { width: sigW - 8 });
+      .text(receiverName, margin + 4, y + 84, { width: sigW - 8 });
 
-    // Technician signature
+    // Technician signature box
     const tx2 = margin + sigW + 20;
-    doc.rect(tx2, y, sigW, 80).stroke('#CCCCCC');
-    doc.rect(tx2, y + 62, sigW, 18).fill(lightGray);
-    doc.fillColor(blue).fontSize(8).font('Helvetica-Bold')
-      .text('FIRMA TÉCNICO', tx2 + 4, y + 67, { width: sigW - 8 });
+    doc.rect(tx2, y, sigW, 70).stroke('#CCCCCC');
+    doc.rect(tx2, y + 70, sigW, 30).fill(lightGray).stroke('#CCCCCC');
+    doc.fillColor(blue).fontSize(7).font('Helvetica-Bold')
+      .text('FIRMA TÉCNICO', tx2 + 4, y + 74, { width: sigW - 8 });
     doc.fillColor(darkGray).fontSize(8).font('Helvetica')
-      .text(technician?.name || '–', tx2 + 4, y + 78, { width: sigW - 8 });
+      .text(technician?.name || '–', tx2 + 4, y + 84, { width: sigW - 8 });
 
-    // Footer - simple line
-    doc.moveTo(margin, 800).lineTo(pageWidth - margin, 800).stroke('#CCCCCC');
+    y += 110;
+
+    // Footer - simple line at bottom
+    const footerY = Math.max(y + 10, 800);
+    doc.moveTo(margin, footerY).lineTo(pageWidth - margin, footerY).stroke('#CCCCCC');
     doc.fillColor(darkGray).fontSize(7).font('Helvetica')
-      .text(`${COMPANY.name} | ${COMPANY.address} | ${COMPANY.phone} | ${COMPANY.email} | ${COMPANY.web}`, margin, 806, { width: cw, align: 'center' });
+      .text(`${COMPANY.name} | ${COMPANY.address} | ${COMPANY.phone} | ${COMPANY.email} | ${COMPANY.web}`, margin, footerY + 6, { width: cw, align: 'center' });
     doc.fillColor(darkGray).fontSize(7)
-      .text(`Reporte generado el ${new Date().toLocaleDateString('es-CO')}`, margin, 818, { width: cw, align: 'center' });
+      .text(`Reporte generado el ${new Date().toLocaleDateString('es-CO')}`, margin, footerY + 18, { width: cw, align: 'center' });
 
     doc.end();
     return new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
