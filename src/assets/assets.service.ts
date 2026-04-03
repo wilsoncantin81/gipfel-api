@@ -107,14 +107,14 @@ export class AssetsService {
     const ws = wb.addWorksheet('Inventario de Activos', { pageSetup: { orientation: 'landscape' } });
 
     // Header row with company info
-    ws.mergeCells('A1:K1');
+    ws.mergeCells('A1:S1');
     ws.getCell('A1').value = 'GRUPO GIPFEL — INVENTARIO DE ACTIVOS TI';
     ws.getCell('A1').font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
     ws.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0A4F8C' } };
     ws.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
     ws.getRow(1).height = 30;
 
-    ws.mergeCells('A2:K2');
+    ws.mergeCells('A2:S2');
     ws.getCell('A2').value = `${COMPANY.address} | Tel: ${COMPANY.phone} | ${COMPANY.email} | Generado: ${new Date().toLocaleDateString('es-CO')}`;
     ws.getCell('A2').font = { size: 9, color: { argb: 'FFFFFFFF' } };
     ws.getCell('A2').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF00AEEF' } };
@@ -134,8 +134,6 @@ export class AssetsService {
       cell.border = { bottom: { style: 'thin', color: { argb: 'FF00AEEF' } } };
       ws.getColumn(i + 1).width = widths[i];
     });
-    ws.mergeCells('A1:S1');
-    ws.mergeCells('A2:S2');
     ws.getRow(3).height = 22;
 
     // Data rows
@@ -437,6 +435,26 @@ export class AssetsService {
         doc.fillColor(darkGray).fontSize(9).font('Helvetica').text(String(value), x + 6, y + 14, { width: col - 16 });
       });
       y += boxH + 10;
+    }
+
+    // Extra fields / Specs
+    const extraFields = Array.isArray((a as any).extraFields)
+      ? (a as any).extraFields
+      : Object.entries((a as any).extraFields || {}).map(([k, v]) => ({ k, v }));
+    if (extraFields.length > 0) {
+      section('Especificaciones Técnicas Adicionales');
+      extraFields.forEach((f: any, fi: number) => {
+        const x = margin + (fi % 3) * col;
+        if (fi % 3 === 0 && fi > 0) y += boxH + 2;
+        if (fi % 3 === 0) {
+          // new row
+        }
+        doc.rect(x, y, col - 4, boxH).fill(fi % 2 === 0 ? lightGray : white).stroke('#CCCCCC');
+        doc.fillColor(blue).fontSize(7).font('Helvetica-Bold').text(String(f.k||'').toUpperCase(), x + 6, y + 4, { width: col - 16 });
+        doc.fillColor(darkGray).fontSize(9).font('Helvetica').text(String(f.v||'–'), x + 6, y + 14, { width: col - 16 });
+        if ((fi + 1) % 3 === 0 || fi === extraFields.length - 1) y += boxH + 4;
+      });
+      y += 6;
     }
 
     // Maintenance history
