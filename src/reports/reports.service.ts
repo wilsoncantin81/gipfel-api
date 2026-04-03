@@ -267,9 +267,9 @@ export class ReportsService {
 
     // Footer - simple line
     doc.moveTo(margin, 800).lineTo(pageWidth - margin, 800).stroke('#CCCCCC');
-    doc.fillColor(gray).fontSize(7).font('Helvetica')
+    doc.fillColor(darkGray).fontSize(7).font('Helvetica')
       .text(`${COMPANY.name} | ${COMPANY.address} | ${COMPANY.phone} | ${COMPANY.email} | ${COMPANY.web}`, margin, 806, { width: cw, align: 'center' });
-    doc.fillColor(gray).fontSize(7)
+    doc.fillColor(darkGray).fontSize(7)
       .text(`Reporte generado el ${new Date().toLocaleDateString('es-CO')}`, margin, 818, { width: cw, align: 'center' });
 
     doc.end();
