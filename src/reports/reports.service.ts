@@ -292,7 +292,7 @@ export class ReportsService {
     return new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
   }
 
-  async sendEmail(id: string, toEmail?: string) {
+  async sendEmail(id: string, toEmail?: string, cc?: string) {
     const rpt = await this.findOne(id);
     if (!rpt) throw new Error('Report not found');
     const client = (rpt as any).client;
@@ -369,6 +369,7 @@ export class ReportsService {
       body: JSON.stringify({
         from: 'Gipfel IT <soporte@grupogipfel.com>',
         to: recipient,
+        cc: cc || undefined,
         subject: `Reporte de Servicio ${rpt.reportNumber} - ${client?.businessName || ''}`,
         html,
       }),
