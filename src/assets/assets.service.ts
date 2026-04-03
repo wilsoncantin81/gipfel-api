@@ -9,6 +9,7 @@ const COMPANY = {
   email: 'info@grupogipfel.com',
   web: 'www.grupogipfel.com',
   logoUrl: 'https://www.grupogipfel.com/imagenes/logo-gipfel.png',
+  logoDarkUrl: 'https://www.grupogipfel.com/imagenes/logo-gipfel2.png',
 };
 
 @Injectable()
