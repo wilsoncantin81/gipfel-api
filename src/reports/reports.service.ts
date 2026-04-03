@@ -100,9 +100,9 @@ export class ReportsService {
     try {
       const https = require('https');
       const http = require('http');
-      const client = url.startsWith('https') ? https : http;
+      const lib = url.startsWith('https') ? https : http;
       return await new Promise<Buffer>((resolve, reject) => {
-        const req = client.get(url, { timeout: 5000 }, (res: any) => {
+        const req = lib.get(url, { timeout: 5000 }, (res: any) => {
           if (res.statusCode !== 200) { reject(new Error('Not found')); return; }
           const chunks: Buffer[] = [];
           res.on('data', (c: Buffer) => chunks.push(c));
@@ -120,7 +120,7 @@ export class ReportsService {
     if (!rpt) throw new Error('Report not found');
 
     const PDFDocument = require('pdfkit');
-    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    const doc = new PDFDocument({ margin: 0, size: 'A4', autoFirstPage: true });
     const chunks: Buffer[] = [];
     doc.on('data', (c: Buffer) => chunks.push(c));
 
@@ -129,177 +129,164 @@ export class ReportsService {
     const white = '#FFFFFF';
     const lightGray = '#F5F5F5';
     const darkGray = '#333333';
-    const pageWidth = 595.28;
-    const margin = 50;
-    const cw = pageWidth - margin * 2;
+    const pageW = 595.28;
+    const margin = 40;
+    const cw = pageW - margin * 2;
     const client = (rpt as any).client;
     const technician = (rpt as any).technician;
     const assets = (rpt as any).assets || [];
 
-    // HEADER
-    doc.rect(0, 0, pageWidth, 110).fill(white).stroke('#EEEEEE');
+    // ── HEADER ──────────────────────────────────────────
+    doc.rect(0, 0, pageW, 105).fill(white);
+    doc.rect(0, 0, pageW, 105).stroke('#DDDDDD');
 
     // Logo
     const logoBuffer = await this.fetchImageBuffer(COMPANY.logoUrl);
     if (logoBuffer) {
-      try { doc.image(logoBuffer, margin, 18, { height: 65, fit: [170, 65] }); } catch {}
+      try { doc.image(logoBuffer, margin, 15, { height: 70, fit: [180, 70] }); } catch {}
     }
 
-    // Company info right side
-    doc.fillColor(blue).fontSize(8).font('Helvetica')
-      .text(COMPANY.address, pageWidth - 210, 22, { width: 165, align: 'right' })
-      .text(`Tel: ${COMPANY.phone}`, pageWidth - 210, 36, { width: 165, align: 'right' })
-      .text(`Cel: ${COMPANY.mobile}`, pageWidth - 210, 48, { width: 165, align: 'right' })
-      .text(COMPANY.email, pageWidth - 210, 60, { width: 165, align: 'right' })
-      .text(COMPANY.web, pageWidth - 210, 72, { width: 165, align: 'right' });
+    // Company info
+    doc.fillColor(blue).fontSize(8).font('Helvetica-Bold')
+      .text(COMPANY.name, pageW - 200, 18, { width: 165, align: 'right' });
+    doc.font('Helvetica').fontSize(7.5)
+      .text(COMPANY.address, pageW - 200, 30, { width: 165, align: 'right' })
+      .text(`Tel: ${COMPANY.phone} | Cel: ${COMPANY.mobile}`, pageW - 200, 42, { width: 165, align: 'right' })
+      .text(COMPANY.email, pageW - 200, 54, { width: 165, align: 'right' })
+      .text(COMPANY.web, pageW - 200, 66, { width: 165, align: 'right' });
 
     // Title bar
-    doc.rect(0, 110, pageWidth, 32).fill(lightBlue);
-    doc.fillColor(white).fontSize(13).font('Helvetica-Bold')
-      .text('REPORTE DE SERVICIO TÉCNICO', margin, 120, { width: cw, align: 'center' });
+    doc.rect(0, 105, pageW, 28).fill(lightBlue);
+    doc.fillColor(white).fontSize(12).font('Helvetica-Bold')
+      .text('REPORTE DE SERVICIO TÉCNICO', margin, 114, { width: cw, align: 'center' });
 
-    let y = 158;
+    let y = 143;
 
-    // Report info boxes
-    const boxH = 28;
+    // ── INFO BOXES ───────────────────────────────────────
+    const drawBox = (x: number, bY: number, w: number, h: number, label: string, value: string, bg: string) => {
+      doc.rect(x, bY, w, h).fill(bg).stroke('#CCCCCC');
+      doc.fillColor(blue).fontSize(6.5).font('Helvetica-Bold')
+        .text(label, x + 5, bY + 4, { width: w - 10 });
+      doc.fillColor(darkGray).fontSize(8.5).font('Helvetica')
+        .text(value, x + 5, bY + 14, { width: w - 10 });
+    };
+
     const col = cw / 3;
+    const boxH = 28;
 
-    // Row 1: N° Reporte | Fecha | Tipo de servicio
-    const infos = [
-      ['N° Reporte', rpt.reportNumber],
-      ['Fecha', new Date(rpt.date).toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' })],
-      ['Tipo de Servicio', SERVICE_TYPES[rpt.serviceType] || rpt.serviceType],
+    // Row 1
+    const row1 = [
+      ['N° REPORTE', rpt.reportNumber],
+      ['FECHA', new Date(rpt.date).toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' })],
+      ['TIPO DE SERVICIO', SERVICE_TYPES[rpt.serviceType] || rpt.serviceType],
     ];
+    row1.forEach(([l, v], i) => drawBox(margin + i * col, y, col - 3, boxH, l, v, i % 2 === 0 ? lightGray : white));
+    y += boxH + 3;
 
-    infos.forEach(([label, value], i) => {
-      const x = margin + i * col;
-      doc.rect(x, y, col - 4, boxH).fill(i % 2 === 0 ? lightGray : white).stroke('#CCCCCC');
-      doc.fillColor(blue).fontSize(7).font('Helvetica-Bold').text(label.toUpperCase(), x + 6, y + 5, { width: col - 16 });
-      doc.fillColor(darkGray).fontSize(9).font('Helvetica').text(value, x + 6, y + 15, { width: col - 16 });
-    });
-
+    // Row 2
+    const row2 = [
+      ['CLIENTE', client?.businessName || '–'],
+      ['TÉCNICO', technician?.name || '–'],
+      ['RECIBE', (rpt as any).receivedBy || client?.contactName || '–'],
+    ];
+    row2.forEach(([l, v], i) => drawBox(margin + i * col, y, col - 3, boxH, l, v, i % 2 === 0 ? white : lightGray));
     y += boxH + 8;
 
-    // Row 2: Cliente | Técnico
-    const infos2 = [
-      ['Cliente', client?.businessName || '–'],
-      ['Técnico', technician?.name || '–'],
-      ['Recibe', (rpt as any).receivedBy || client?.contactName || '–'],
-    ];
-
-    infos2.forEach(([label, value], i) => {
-      const x = margin + i * col;
-      doc.rect(x, y, col - 4, boxH).fill(i % 2 === 0 ? lightGray : white).stroke('#CCCCCC');
-      doc.fillColor(blue).fontSize(7).font('Helvetica-Bold').text(label.toUpperCase(), x + 6, y + 5, { width: col - 16 });
-      doc.fillColor(darkGray).fontSize(9).font('Helvetica').text(value, x + 6, y + 15, { width: col - 16 });
-    });
-
-    y += boxH + 14;
-
-    // Section helper
+    // ── SECTION HELPERS ──────────────────────────────────
     const section = (title: string) => {
-      doc.rect(margin, y, cw, 20).fill(blue);
-      doc.fillColor(white).fontSize(9).font('Helvetica-Bold').text(title.toUpperCase(), margin + 8, y + 6, { width: cw });
-      y += 26;
+      doc.rect(margin, y, cw, 18).fill(blue);
+      doc.fillColor(white).fontSize(8).font('Helvetica-Bold')
+        .text(title, margin + 6, y + 5, { width: cw - 12 });
+      y += 22;
     };
 
-    const field = (text: string) => {
-      const textH = doc.heightOfString(text, { width: cw - 16 });
-      const h = Math.max(textH + 12, 24);
+    const textBlock = (text: string) => {
+      const h = Math.max(doc.heightOfString(text, { width: cw - 16 }) + 10, 22);
       doc.rect(margin, y, cw, h).fill(lightGray).stroke('#DDDDDD');
-      doc.fillColor(darkGray).fontSize(9).font('Helvetica').text(text, margin + 8, y + 6, { width: cw - 16 });
-      y += h + 6;
+      doc.fillColor(darkGray).fontSize(8.5).font('Helvetica')
+        .text(text, margin + 8, y + 5, { width: cw - 16 });
+      y += h + 5;
     };
 
-    // Description
-    section('Descripción del Servicio');
-    field(rpt.description || '–');
+    // ── CONTENT ──────────────────────────────────────────
+    section('DESCRIPCIÓN DEL SERVICIO');
+    textBlock(rpt.description || '–');
 
-    // Work done
     if (rpt.workDone) {
-      section('Trabajo Realizado');
-      field(rpt.workDone);
+      section('TRABAJO REALIZADO');
+      textBlock(rpt.workDone);
     }
 
-    // Recommendations
     if (rpt.recommendations) {
-      section('Recomendaciones');
-      field(rpt.recommendations);
+      section('RECOMENDACIONES');
+      textBlock(rpt.recommendations);
     }
 
-    // Assets
+    // Assets table
     if (assets.length > 0) {
-      section('Equipos Intervenidos');
-      const colWidths = [cw * 0.35, cw * 0.2, cw * 0.2, cw * 0.25];
-      const headers = ['Equipo', 'Tipo', 'Marca/Modelo', 'Serial'];
+      section('EQUIPOS INTERVENIDOS');
+      const cols = [cw * 0.35, cw * 0.2, cw * 0.22, cw * 0.23];
+      const heads = ['Equipo', 'Tipo', 'Marca/Modelo', 'Serial'];
+      doc.rect(margin, y, cw, 16).fill(lightBlue);
       let tx = margin;
-      doc.rect(margin, y, cw, 18).fill(lightBlue);
-      headers.forEach((h, i) => {
-        doc.fillColor(white).fontSize(8).font('Helvetica-Bold').text(h, tx + 4, y + 5, { width: colWidths[i] - 8 });
-        tx += colWidths[i];
+      heads.forEach((h, i) => {
+        doc.fillColor(white).fontSize(7.5).font('Helvetica-Bold').text(h, tx + 4, y + 4, { width: cols[i] - 8 });
+        tx += cols[i];
       });
-      y += 18;
+      y += 16;
       assets.forEach((ra: any, ri: number) => {
         const a = ra.asset;
-        const rowH = 18;
-        doc.rect(margin, y, cw, rowH).fill(ri % 2 === 0 ? white : lightGray).stroke('#DDDDDD');
+        const rh = 16;
+        doc.rect(margin, y, cw, rh).fill(ri % 2 === 0 ? white : lightGray).stroke('#DDDDDD');
         tx = margin;
-        const vals = [a?.name || '–', a?.assetType?.name || '–', `${a?.brand || ''} ${a?.model || ''}`.trim() || '–', a?.serialNumber || '–'];
-        vals.forEach((v, i) => {
-          doc.fillColor(darkGray).fontSize(8).font('Helvetica').text(v, tx + 4, y + 5, { width: colWidths[i] - 8 });
-          tx += colWidths[i];
+        [a?.name || '–', a?.assetType?.name || '–', `${a?.brand || ''} ${a?.model || ''}`.trim() || '–', a?.serialNumber || '–'].forEach((v, i) => {
+          doc.fillColor(darkGray).fontSize(7.5).font('Helvetica').text(v, tx + 4, y + 4, { width: cols[i] - 8 });
+          tx += cols[i];
         });
-        y += rowH;
+        y += rh;
       });
-      y += 8;
+      y += 5;
     }
 
-    // Signatures - check if we need new page
-    const sigSectionH = 140; // section title + boxes + footer
-    if (y + sigSectionH > 750) {
+    // ── SIGNATURES ───────────────────────────────────────
+    const sigH = 100; // total height needed for signatures
+    if (y + sigH + 40 > 820) {
       doc.addPage();
-      y = 50;
+      y = 40;
     }
 
-    y += 10;
-    section('Firmas');
+    y += 8;
+    section('FIRMAS');
 
-    const sigW = cw / 2 - 10;
+    const sigW = cw / 2 - 8;
+    const sigBoxH = 65;
 
-    // Client signature box
-    doc.rect(margin, y, sigW, 70).stroke('#CCCCCC');
+    // Client
+    doc.rect(margin, y, sigW, sigBoxH).stroke('#CCCCCC');
     if (rpt.clientSignature) {
       try {
-        const sigData = rpt.clientSignature.replace(/^data:image\/\w+;base64,/, '');
-        const sigBuffer = Buffer.from(sigData, 'base64');
-        doc.image(sigBuffer, margin + 5, y + 5, { fit: [sigW - 10, 55] });
+        const sigBuf = Buffer.from(rpt.clientSignature.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+        doc.image(sigBuf, margin + 4, y + 4, { fit: [sigW - 8, sigBoxH - 8] });
       } catch {}
     }
-    doc.rect(margin, y + 70, sigW, 30).fill(lightGray).stroke('#CCCCCC');
-    doc.fillColor(blue).fontSize(7).font('Helvetica-Bold')
-      .text('FIRMA CLIENTE', margin + 4, y + 74, { width: sigW - 8 });
-    const receiverName = (rpt as any).receivedBy || client?.contactName || client?.businessName || '–';
-    doc.fillColor(darkGray).fontSize(8).font('Helvetica')
-      .text(receiverName, margin + 4, y + 84, { width: sigW - 8 });
+    doc.rect(margin, y + sigBoxH, sigW, 22).fill(lightGray).stroke('#CCCCCC');
+    doc.fillColor(blue).fontSize(7).font('Helvetica-Bold').text('FIRMA CLIENTE', margin + 4, y + sigBoxH + 4, { width: sigW - 8 });
+    doc.fillColor(darkGray).fontSize(8).font('Helvetica').text((rpt as any).receivedBy || client?.contactName || client?.businessName || '–', margin + 4, y + sigBoxH + 13, { width: sigW - 8 });
 
-    // Technician signature box
-    const tx2 = margin + sigW + 20;
-    doc.rect(tx2, y, sigW, 70).stroke('#CCCCCC');
-    doc.rect(tx2, y + 70, sigW, 30).fill(lightGray).stroke('#CCCCCC');
-    doc.fillColor(blue).fontSize(7).font('Helvetica-Bold')
-      .text('FIRMA TÉCNICO', tx2 + 4, y + 74, { width: sigW - 8 });
-    doc.fillColor(darkGray).fontSize(8).font('Helvetica')
-      .text(technician?.name || '–', tx2 + 4, y + 84, { width: sigW - 8 });
+    // Technician
+    const tx2 = margin + sigW + 16;
+    doc.rect(tx2, y, sigW, sigBoxH).stroke('#CCCCCC');
+    doc.rect(tx2, y + sigBoxH, sigW, 22).fill(lightGray).stroke('#CCCCCC');
+    doc.fillColor(blue).fontSize(7).font('Helvetica-Bold').text('FIRMA TÉCNICO', tx2 + 4, y + sigBoxH + 4, { width: sigW - 8 });
+    doc.fillColor(darkGray).fontSize(8).font('Helvetica').text(technician?.name || '–', tx2 + 4, y + sigBoxH + 13, { width: sigW - 8 });
 
-    y += 110;
+    y += sigBoxH + 22 + 12;
 
-    // Footer - simple line at bottom
-    const footerY = Math.max(y + 10, 800);
-    doc.moveTo(margin, footerY).lineTo(pageWidth - margin, footerY).stroke('#CCCCCC');
-    doc.fillColor(darkGray).fontSize(7).font('Helvetica')
-      .text(`${COMPANY.name} | ${COMPANY.address} | ${COMPANY.phone} | ${COMPANY.email} | ${COMPANY.web}`, margin, footerY + 6, { width: cw, align: 'center' });
-    doc.fillColor(darkGray).fontSize(7)
-      .text(`Reporte generado el ${new Date().toLocaleDateString('es-CO')}`, margin, footerY + 18, { width: cw, align: 'center' });
+    // ── FOOTER ───────────────────────────────────────────
+    doc.moveTo(margin, y).lineTo(pageW - margin, y).stroke('#CCCCCC');
+    doc.fillColor(darkGray).fontSize(6.5).font('Helvetica')
+      .text(`${COMPANY.name} | ${COMPANY.address} | Tel: ${COMPANY.phone} | Cel: ${COMPANY.mobile} | ${COMPANY.email} | ${COMPANY.web}`, margin, y + 5, { width: cw, align: 'center' })
+      .text(`Documento generado el ${new Date().toLocaleDateString('es-CO')}`, margin, y + 15, { width: cw, align: 'center' });
 
     doc.end();
     return new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
@@ -322,17 +309,14 @@ export class ReportsService {
           <th style="padding:6px;text-align:left">Serial</th>
         </tr>
         ${assets.map((ra: any, i: number) => `
-          <tr style="background:${i%2===0?'#f9f9f9':'white'}">
-            <td style="padding:6px;border-bottom:1px solid #eee">${ra.asset?.name||'–'}</td>
-            <td style="padding:6px;border-bottom:1px solid #eee">${ra.asset?.assetType?.name||'–'}</td>
-            <td style="padding:6px;border-bottom:1px solid #eee">${ra.asset?.serialNumber||'–'}</td>
+          <tr style="background:${i % 2 === 0 ? '#f9f9f9' : 'white'}">
+            <td style="padding:6px;border-bottom:1px solid #eee">${ra.asset?.name || '–'}</td>
+            <td style="padding:6px;border-bottom:1px solid #eee">${ra.asset?.assetType?.name || '–'}</td>
+            <td style="padding:6px;border-bottom:1px solid #eee">${ra.asset?.serialNumber || '–'}</td>
           </tr>`).join('')}
       </table>` : '<p style="color:#888">Sin equipos registrados</p>';
 
-    const html = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"></head>
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
 <body style="font-family:Arial,sans-serif;margin:0;padding:0;background:#f4f4f4">
   <div style="max-width:600px;margin:20px auto;background:white;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)">
     <div style="background:#0A4F8C;padding:24px;text-align:center">
@@ -345,33 +329,29 @@ export class ReportsService {
     <div style="padding:24px">
       <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
         <tr>
-          <td style="padding:8px;background:#f5f5f5;width:50%"><strong style="color:#0A4F8C">Fecha:</strong><br>${new Date(rpt.date).toLocaleDateString('es-CO', {year:'numeric',month:'long',day:'numeric'})}</td>
+          <td style="padding:8px;background:#f5f5f5;width:50%"><strong style="color:#0A4F8C">Fecha:</strong><br>${new Date(rpt.date).toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' })}</td>
           <td style="padding:8px;background:white;width:50%"><strong style="color:#0A4F8C">Tipo de Servicio:</strong><br>${SERVICE_TYPES[rpt.serviceType] || rpt.serviceType}</td>
         </tr>
         <tr>
-          <td style="padding:8px;background:white"><strong style="color:#0A4F8C">Cliente:</strong><br>${client?.businessName||'–'}</td>
-          <td style="padding:8px;background:#f5f5f5"><strong style="color:#0A4F8C">Técnico:</strong><br>${technician?.name||'–'}</td>
+          <td style="padding:8px;background:white"><strong style="color:#0A4F8C">Cliente:</strong><br>${client?.businessName || '–'}</td>
+          <td style="padding:8px;background:#f5f5f5"><strong style="color:#0A4F8C">Técnico:</strong><br>${technician?.name || '–'}</td>
         </tr>
         <tr>
           <td style="padding:8px;background:#f5f5f5" colspan="2"><strong style="color:#0A4F8C">Persona que recibe:</strong> ${(rpt as any).receivedBy || client?.contactName || '–'}</td>
         </tr>
       </table>
-
       <div style="background:#f5f5f5;border-left:4px solid #0A4F8C;padding:12px;margin-bottom:16px;border-radius:0 4px 4px 0">
         <strong style="color:#0A4F8C">Descripción del Servicio:</strong>
         <p style="margin:8px 0 0;color:#333">${rpt.description}</p>
       </div>
-
       ${rpt.workDone ? `<div style="background:#f5f5f5;border-left:4px solid #00AEEF;padding:12px;margin-bottom:16px;border-radius:0 4px 4px 0">
         <strong style="color:#0A4F8C">Trabajo Realizado:</strong>
         <p style="margin:8px 0 0;color:#333">${rpt.workDone}</p>
       </div>` : ''}
-
       ${rpt.recommendations ? `<div style="background:#fff3cd;border-left:4px solid #ffc107;padding:12px;margin-bottom:16px;border-radius:0 4px 4px 0">
         <strong style="color:#856404">Recomendaciones:</strong>
         <p style="margin:8px 0 0;color:#333">${rpt.recommendations}</p>
       </div>` : ''}
-
       <strong style="color:#0A4F8C">Equipos Intervenidos:</strong>
       ${assetsHtml}
     </div>
@@ -381,15 +361,11 @@ export class ReportsService {
       <p style="color:white;margin:0;font-size:11px">${COMPANY.email} | ${COMPANY.web}</p>
     </div>
   </div>
-</body>
-</html>`;
+</body></html>`;
 
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         from: 'Gipfel IT <soporte@grupogipfel.com>',
         to: recipient,
