@@ -121,38 +121,47 @@ export class AssetsService {
     ws.getCell('A2').alignment = { horizontal: 'center' };
     ws.getRow(2).height = 18;
 
-    // Column headers
-    const headers = ['Código', 'Nombre', 'Tipo', 'Cliente', 'Marca', 'Modelo', 'Serial', 'Estado', 'Ubicación', 'Próx. Mant.', 'Garantía'];
-    const cols = ['A','B','C','D','E','F','G','H','I','J','K'];
-    const widths = [14, 28, 18, 25, 15, 15, 20, 12, 18, 14, 14];
+    // Column headers - ALL fields
+    const headers = ['Código', 'Nombre', 'Tipo', 'Cliente', 'Marca', 'Modelo', 'Serial', 'Estado', 'Ubicación', 'Proveedor', 'Usuario asignado', 'Responsable', 'IP', 'MAC', 'Acceso Remoto', 'F. Compra', 'Garantía', 'Próx. Mant.', 'Notas'];
+    const widths =  [14,       28,       18,     25,        15,       15,       20,       12,       18,           18,           20,                  18,             15,    17,    18,               14,          14,          14,           25];
 
     headers.forEach((h, i) => {
-      const cell = ws.getCell(`${cols[i]}3`);
+      const cell = ws.getCell(i + 1, 3);
       cell.value = h;
-      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 9 };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0A4F8C' } };
-      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
       cell.border = { bottom: { style: 'thin', color: { argb: 'FF00AEEF' } } };
-      ws.getColumn(cols[i]).width = widths[i];
+      ws.getColumn(i + 1).width = widths[i];
     });
-    ws.getRow(3).height = 20;
+    ws.mergeCells('A1:S1');
+    ws.mergeCells('A2:S2');
+    ws.getRow(3).height = 22;
 
     // Data rows
     assets.forEach((a: any, idx: number) => {
       const row = ws.getRow(idx + 4);
       const bg = idx % 2 === 0 ? 'FFFFFFFF' : 'FFF0F7FF';
       const vals = [
-        a.inventoryCode || '–',
+        a.inventoryCode || '',
         a.name,
-        a.assetType?.name || '–',
-        a.client?.businessName || '–',
-        a.brand || '–',
-        a.model || '–',
-        a.serialNumber || '–',
+        a.assetType?.name || '',
+        a.client?.businessName || '',
+        a.brand || '',
+        a.model || '',
+        a.serialNumber || '',
         a.status,
-        a.location || '–',
-        a.nextMaintenance ? new Date(a.nextMaintenance).toLocaleDateString('es-CO') : '–',
-        a.warrantyUntil ? new Date(a.warrantyUntil).toLocaleDateString('es-CO') : '–',
+        a.location || '',
+        (a as any).supplier || '',
+        (a as any).assignedUser || '',
+        (a as any).responsible || '',
+        (a as any).ipAddress || '',
+        (a as any).macAddress || '',
+        (a as any).remoteAccess || '',
+        a.purchaseDate ? new Date(a.purchaseDate).toLocaleDateString('es-CO') : '',
+        a.warrantyUntil ? new Date(a.warrantyUntil).toLocaleDateString('es-CO') : '',
+        a.nextMaintenance ? new Date(a.nextMaintenance).toLocaleDateString('es-CO') : '',
+        a.notes || '',
       ];
       vals.forEach((v, i) => {
         const cell = row.getCell(i + 1);
@@ -161,7 +170,6 @@ export class AssetsService {
         cell.font = { size: 9 };
         cell.alignment = { vertical: 'middle' };
         cell.border = { bottom: { style: 'hair', color: { argb: 'FFDDDDDD' } } };
-        // Color status
         if (i === 7) {
           cell.font = { size: 9, bold: true, color: { argb: v === 'ACTIVO' ? 'FF27AE60' : v === 'EN_MANTENIMIENTO' ? 'FFF39C12' : 'FFE74C3C' } };
         }
@@ -170,8 +178,9 @@ export class AssetsService {
     });
 
     // Summary row
-    const sumRow = ws.getRow(assets.length + 4);
-    ws.mergeCells(`A${assets.length + 4}:G${assets.length + 4}`);
+    const lastRow = assets.length + 4;
+    ws.mergeCells(`A${lastRow}:S${lastRow}`);
+    const sumRow = ws.getRow(lastRow);
     sumRow.getCell(1).value = `Total de activos: ${assets.length}`;
     sumRow.getCell(1).font = { bold: true, size: 10 };
     sumRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F4FD' } };
