@@ -244,16 +244,20 @@ export class AssetsService {
     const margin = 40;
     const cw = pageWidth - margin * 2;
 
-    // Header
-    doc.rect(0, 0, pageWidth, 80).fill(blue);
+    // Header - white background
+    doc.rect(0, 0, pageWidth, 80).fill(white).stroke('#EEEEEE');
     const logoBuffer = await this.fetchImageBuffer(COMPANY.logoUrl);
     if (logoBuffer) {
-      try { doc.image(logoBuffer, margin, 10, { height: 55, fit: [140, 55] }); } catch {}
+      try { doc.image(logoBuffer, margin, 10, { height: 55, fit: [160, 55] }); } catch {}
     }
-    doc.fillColor(white).fontSize(16).font('Helvetica-Bold')
-      .text('INVENTARIO DE ACTIVOS TI', margin + 160, 22, { width: cw - 160, align: 'center' });
-    doc.fillColor(lightBlue).fontSize(8).font('Helvetica')
-      .text(`${COMPANY.address} | ${COMPANY.phone} | ${COMPANY.email} | ${new Date().toLocaleDateString('es-CO')}`, margin, 60, { width: cw, align: 'center' });
+    doc.fillColor(blue).fontSize(16).font('Helvetica-Bold')
+      .text('INVENTARIO DE ACTIVOS TI', margin + 180, 20, { width: cw - 180, align: 'right' });
+    doc.fillColor(blue).fontSize(8).font('Helvetica')
+      .text(`${COMPANY.address} | ${COMPANY.phone} | ${COMPANY.email}`, margin + 180, 42, { width: cw - 180, align: 'right' });
+    doc.fillColor(blue).fontSize(8)
+      .text(`Generado: ${new Date().toLocaleDateString('es-CO')}`, margin + 180, 56, { width: cw - 180, align: 'right' });
+    // Blue separator line
+    doc.rect(0, 78, pageWidth, 3).fill(lightBlue);
 
     let y = 95;
 
