@@ -1,6 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../common/prisma.service';
 
+const COMPANY = {
+  name: 'Grupo Gipfel',
+  address: 'Calle 96 #68F-24, Bogotá',
+  phone: '601 811 9749',
+  mobile: '311 503 5734',
+  email: 'info@grupogipfel.com',
+  web: 'www.grupogipfel.com',
+  logoUrl: 'https://www.grupogipfel.com/imagenes/logo-gipfel.png',
+};
+
 @Injectable()
 export class AssetsService {
   constructor(private prisma: PrismaService) {}
@@ -10,12 +20,12 @@ export class AssetsService {
     if (q.clientId) where.clientId = q.clientId;
     if (q.status) where.status = q.status;
     if (q.assetTypeId) where.assetTypeId = q.assetTypeId;
-   if (q.search) where.OR = [
-  { name: { contains: q.search, mode: 'insensitive' } },
-  { inventoryCode: { contains: q.search, mode: 'insensitive' } },
-  { serialNumber: { contains: q.search, mode: 'insensitive' } },
-  { brand: { contains: q.search, mode: 'insensitive' } },
-];
+    if (q.search) where.OR = [
+      { name: { contains: q.search, mode: 'insensitive' } },
+      { inventoryCode: { contains: q.search, mode: 'insensitive' } },
+      { serialNumber: { contains: q.search, mode: 'insensitive' } },
+      { brand: { contains: q.search, mode: 'insensitive' } },
+    ];
     return this.prisma.asset.findMany({
       where,
       include: { client: { select: { id: true, businessName: true } }, assetType: true },
@@ -61,10 +71,7 @@ export class AssetsService {
   }
 
   async create(dto: any) {
-    return this.prisma.asset.create({
-      data: this.sanitize(dto) as any,
-      include: { client: true, assetType: true },
-    });
+    return this.prisma.asset.create({ data: this.sanitize(dto) as any, include: { client: true, assetType: true } });
   }
 
   async update(id: string, dto: any) {
@@ -80,9 +87,8 @@ export class AssetsService {
   async getPassword(id: string) {
     const a = await this.prisma.asset.findUnique({ where: { id } });
     if (!a?.encryptedPassword) return { password: null };
-    try {
-      return { password: Buffer.from(a.encryptedPassword, 'base64').toString('utf8') };
-    } catch { return { password: a.encryptedPassword }; }
+    try { return { password: Buffer.from(a.encryptedPassword, 'base64').toString('utf8') }; }
+    catch { return { password: a.encryptedPassword }; }
   }
 
   async getQR(id: string) {
@@ -93,31 +99,396 @@ export class AssetsService {
     return { qrCodeUrl: qr, name: a.name };
   }
 
-  async exportExcel() {
-    const assets = await this.prisma.asset.findMany({
-      include: { client: { select: { businessName: true } }, assetType: { select: { name: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
+  async exportExcel(q: any = {}) {
+    const assets = await this.findAll(q);
     const ExcelJS = require('exceljs');
     const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet('Activos');
-    ws.columns = [
-      { header: 'Nombre', key: 'name', width: 30 },
-      { header: 'Tipo', key: 'type', width: 20 },
-      { header: 'Cliente', key: 'client', width: 30 },
-      { header: 'Marca', key: 'brand', width: 15 },
-      { header: 'Modelo', key: 'model', width: 15 },
-      { header: 'Serial', key: 'serial', width: 20 },
-      { header: 'Código', key: 'code', width: 18 },
-      { header: 'Estado', key: 'status', width: 15 },
-      { header: 'Ubicación', key: 'location', width: 20 },
-    ];
-    ws.getRow(1).font = { bold: true };
-    assets.forEach((a: any) => ws.addRow({
-      name: a.name, type: a.assetType?.name || '', client: a.client?.businessName || '',
-      brand: a.brand || '', model: a.model || '', serial: a.serialNumber || '',
-      code: a.inventoryCode || '', status: a.status, location: a.location || '',
-    }));
+    wb.creator = 'Grupo Gipfel';
+    const ws = wb.addWorksheet('Inventario de Activos', { pageSetup: { orientation: 'landscape' } });
+
+    // Header row with company info
+    ws.mergeCells('A1:K1');
+    ws.getCell('A1').value = 'GRUPO GIPFEL — INVENTARIO DE ACTIVOS TI';
+    ws.getCell('A1').font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+    ws.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0A4F8C' } };
+    ws.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
+    ws.getRow(1).height = 30;
+
+    ws.mergeCells('A2:K2');
+    ws.getCell('A2').value = `${COMPANY.address} | Tel: ${COMPANY.phone} | ${COMPANY.email} | Generado: ${new Date().toLocaleDateString('es-CO')}`;
+    ws.getCell('A2').font = { size: 9, color: { argb: 'FFFFFFFF' } };
+    ws.getCell('A2').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF00AEEF' } };
+    ws.getCell('A2').alignment = { horizontal: 'center' };
+    ws.getRow(2).height = 18;
+
+    // Column headers
+    const headers = ['Código', 'Nombre', 'Tipo', 'Cliente', 'Marca', 'Modelo', 'Serial', 'Estado', 'Ubicación', 'Próx. Mant.', 'Garantía'];
+    const cols = ['A','B','C','D','E','F','G','H','I','J','K'];
+    const widths = [14, 28, 18, 25, 15, 15, 20, 12, 18, 14, 14];
+
+    headers.forEach((h, i) => {
+      const cell = ws.getCell(`${cols[i]}3`);
+      cell.value = h;
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0A4F8C' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = { bottom: { style: 'thin', color: { argb: 'FF00AEEF' } } };
+      ws.getColumn(cols[i]).width = widths[i];
+    });
+    ws.getRow(3).height = 20;
+
+    // Data rows
+    assets.forEach((a: any, idx: number) => {
+      const row = ws.getRow(idx + 4);
+      const bg = idx % 2 === 0 ? 'FFFFFFFF' : 'FFF0F7FF';
+      const vals = [
+        a.inventoryCode || '–',
+        a.name,
+        a.assetType?.name || '–',
+        a.client?.businessName || '–',
+        a.brand || '–',
+        a.model || '–',
+        a.serialNumber || '–',
+        a.status,
+        a.location || '–',
+        a.nextMaintenance ? new Date(a.nextMaintenance).toLocaleDateString('es-CO') : '–',
+        a.warrantyUntil ? new Date(a.warrantyUntil).toLocaleDateString('es-CO') : '–',
+      ];
+      vals.forEach((v, i) => {
+        const cell = row.getCell(i + 1);
+        cell.value = v;
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+        cell.font = { size: 9 };
+        cell.alignment = { vertical: 'middle' };
+        cell.border = { bottom: { style: 'hair', color: { argb: 'FFDDDDDD' } } };
+        // Color status
+        if (i === 7) {
+          cell.font = { size: 9, bold: true, color: { argb: v === 'ACTIVO' ? 'FF27AE60' : v === 'EN_MANTENIMIENTO' ? 'FFF39C12' : 'FFE74C3C' } };
+        }
+      });
+      row.height = 16;
+    });
+
+    // Summary row
+    const sumRow = ws.getRow(assets.length + 4);
+    ws.mergeCells(`A${assets.length + 4}:G${assets.length + 4}`);
+    sumRow.getCell(1).value = `Total de activos: ${assets.length}`;
+    sumRow.getCell(1).font = { bold: true, size: 10 };
+    sumRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F4FD' } };
+
     return wb.xlsx.writeBuffer();
+  }
+
+  private async fetchImageBuffer(url: string): Promise<Buffer | null> {
+    try {
+      const https = require('https');
+      const http = require('http');
+      const client = url.startsWith('https') ? https : http;
+      return await new Promise<Buffer>((resolve, reject) => {
+        const req = client.get(url, { timeout: 5000 }, (res: any) => {
+          if (res.statusCode !== 200) { reject(new Error('Not found')); return; }
+          const chunks: Buffer[] = [];
+          res.on('data', (c: Buffer) => chunks.push(c));
+          res.on('end', () => resolve(Buffer.concat(chunks)));
+          res.on('error', reject);
+        });
+        req.on('error', reject);
+        req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
+      });
+    } catch { return null; }
+  }
+
+  async exportPDF(q: any = {}) {
+    const assets = await this.findAll(q);
+    const PDFDocument = require('pdfkit');
+    const doc = new PDFDocument({ margin: 40, size: 'A4', layout: 'landscape' });
+    const chunks: Buffer[] = [];
+    doc.on('data', (c: Buffer) => chunks.push(c));
+
+    const blue = '#0A4F8C';
+    const lightBlue = '#00AEEF';
+    const white = '#FFFFFF';
+    const lightGray = '#F5F5F5';
+    const darkGray = '#333333';
+    const pageWidth = 841.89;
+    const margin = 40;
+    const cw = pageWidth - margin * 2;
+
+    // Header
+    doc.rect(0, 0, pageWidth, 80).fill(blue);
+    const logoBuffer = await this.fetchImageBuffer(COMPANY.logoUrl);
+    if (logoBuffer) {
+      try { doc.image(logoBuffer, margin, 10, { height: 55, fit: [140, 55] }); } catch {}
+    }
+    doc.fillColor(white).fontSize(16).font('Helvetica-Bold')
+      .text('INVENTARIO DE ACTIVOS TI', margin + 160, 22, { width: cw - 160, align: 'center' });
+    doc.fillColor(lightBlue).fontSize(8).font('Helvetica')
+      .text(`${COMPANY.address} | ${COMPANY.phone} | ${COMPANY.email} | ${new Date().toLocaleDateString('es-CO')}`, margin, 60, { width: cw, align: 'center' });
+
+    let y = 95;
+
+    // Table headers
+    const cols = [
+      { label: 'Código', w: 65 },
+      { label: 'Nombre', w: 130 },
+      { label: 'Tipo', w: 80 },
+      { label: 'Cliente', w: 110 },
+      { label: 'Marca/Modelo', w: 100 },
+      { label: 'Serial', w: 90 },
+      { label: 'Estado', w: 65 },
+      { label: 'Ubicación', w: 85 },
+      { label: 'Garantía', w: 75 },
+    ];
+
+    // Header row
+    doc.rect(margin, y, cw, 20).fill(blue);
+    let tx = margin;
+    cols.forEach(col => {
+      doc.fillColor(white).fontSize(8).font('Helvetica-Bold')
+        .text(col.label, tx + 3, y + 6, { width: col.w - 6 });
+      tx += col.w;
+    });
+    y += 20;
+
+    // Data rows
+    assets.forEach((a: any, i: number) => {
+      if (y > 530) {
+        doc.addPage({ layout: 'landscape' });
+        y = 40;
+        // Repeat header
+        doc.rect(margin, y, cw, 20).fill(blue);
+        tx = margin;
+        cols.forEach(col => {
+          doc.fillColor(white).fontSize(8).font('Helvetica-Bold')
+            .text(col.label, tx + 3, y + 6, { width: col.w - 6 });
+          tx += col.w;
+        });
+        y += 20;
+      }
+
+      const rowH = 16;
+      doc.rect(margin, y, cw, rowH).fill(i % 2 === 0 ? white : lightGray).stroke('#EEEEEE');
+      tx = margin;
+      const vals = [
+        a.inventoryCode || '–',
+        a.name,
+        a.assetType?.name || '–',
+        a.client?.businessName || '–',
+        `${a.brand || ''} ${a.model || ''}`.trim() || '–',
+        a.serialNumber || '–',
+        a.status,
+        a.location || '–',
+        a.warrantyUntil ? new Date(a.warrantyUntil).toLocaleDateString('es-CO') : '–',
+      ];
+      vals.forEach((v, ci) => {
+        const color = ci === 6
+          ? (v === 'ACTIVO' ? '#27AE60' : v === 'EN_MANTENIMIENTO' ? '#F39C12' : '#E74C3C')
+          : darkGray;
+        doc.fillColor(color).fontSize(7).font(ci === 6 ? 'Helvetica-Bold' : 'Helvetica')
+          .text(String(v), tx + 3, y + 5, { width: cols[ci].w - 6, ellipsis: true });
+        tx += cols[ci].w;
+      });
+      y += rowH;
+    });
+
+    // Footer
+    doc.moveTo(margin, y + 10).lineTo(pageWidth - margin, y + 10).stroke('#CCCCCC');
+    doc.fillColor(darkGray).fontSize(7)
+      .text(`${COMPANY.name} | Total activos: ${assets.length} | Generado el ${new Date().toLocaleDateString('es-CO')}`,
+        margin, y + 14, { width: cw, align: 'center' });
+
+    doc.end();
+    return new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
+  }
+
+  async getAssetPDF(id: string) {
+    const a = await this.findOne(id);
+    if (!a) throw new Error('Asset not found');
+
+    const PDFDocument = require('pdfkit');
+    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    const chunks: Buffer[] = [];
+    doc.on('data', (c: Buffer) => chunks.push(c));
+
+    const blue = '#0A4F8C';
+    const lightBlue = '#00AEEF';
+    const white = '#FFFFFF';
+    const lightGray = '#F5F5F5';
+    const darkGray = '#333333';
+    const pageWidth = 595.28;
+    const margin = 50;
+    const cw = pageWidth - margin * 2;
+    const client = (a as any).client;
+    const assetType = (a as any).assetType;
+    const maintenance = (a as any).maintenanceRecords || [];
+
+    // Header
+    doc.rect(0, 0, pageWidth, 100).fill(white).stroke('#EEEEEE');
+    const logoBuffer = await this.fetchImageBuffer(COMPANY.logoUrl);
+    if (logoBuffer) {
+      try { doc.image(logoBuffer, margin, 15, { height: 60, fit: [160, 60] }); } catch {}
+    }
+    doc.fillColor(blue).fontSize(8).font('Helvetica')
+      .text(COMPANY.address, pageWidth - 210, 20, { width: 165, align: 'right' })
+      .text(`Tel: ${COMPANY.phone} | Cel: ${COMPANY.mobile}`, pageWidth - 210, 34, { width: 165, align: 'right' })
+      .text(COMPANY.email, pageWidth - 210, 48, { width: 165, align: 'right' })
+      .text(COMPANY.web, pageWidth - 210, 62, { width: 165, align: 'right' });
+
+    // Title bar
+    doc.rect(0, 100, pageWidth, 32).fill(blue);
+    doc.fillColor(white).fontSize(13).font('Helvetica-Bold')
+      .text('HOJA DE VIDA — ACTIVO TI', margin, 110, { width: cw, align: 'center' });
+
+    let y = 148;
+
+    // Asset name bar
+    doc.rect(margin, y, cw, 28).fill(lightBlue);
+    doc.fillColor(white).fontSize(13).font('Helvetica-Bold')
+      .text(`${assetType?.name || ''} — ${a.name}`, margin + 8, y + 8, { width: cw - 16 });
+    y += 36;
+
+    // Info boxes row 1
+    const boxH = 26;
+    const col = cw / 3;
+    const row1 = [
+      ['N° Inventario', a.inventoryCode || '–'],
+      ['Serial', a.serialNumber || '–'],
+      ['Estado', a.status],
+    ];
+    row1.forEach(([label, value], i) => {
+      const x = margin + i * col;
+      doc.rect(x, y, col - 4, boxH).fill(i % 2 === 0 ? lightGray : white).stroke('#CCCCCC');
+      doc.fillColor(blue).fontSize(7).font('Helvetica-Bold').text(label.toUpperCase(), x + 6, y + 4, { width: col - 16 });
+      doc.fillColor(darkGray).fontSize(9).font('Helvetica').text(String(value), x + 6, y + 14, { width: col - 16 });
+    });
+    y += boxH + 4;
+
+    const row2 = [
+      ['Cliente', client?.businessName || '–'],
+      ['Marca / Modelo', `${a.brand || '–'} / ${a.model || '–'}`],
+      ['Tipo de activo', assetType?.name || '–'],
+    ];
+    row2.forEach(([label, value], i) => {
+      const x = margin + i * col;
+      doc.rect(x, y, col - 4, boxH).fill(i % 2 === 0 ? lightGray : white).stroke('#CCCCCC');
+      doc.fillColor(blue).fontSize(7).font('Helvetica-Bold').text(label.toUpperCase(), x + 6, y + 4, { width: col - 16 });
+      doc.fillColor(darkGray).fontSize(9).font('Helvetica').text(String(value), x + 6, y + 14, { width: col - 16 });
+    });
+    y += boxH + 4;
+
+    const row3 = [
+      ['Fecha de compra', a.purchaseDate ? new Date(a.purchaseDate).toLocaleDateString('es-CO') : '–'],
+      ['Garantía hasta', a.warrantyUntil ? new Date(a.warrantyUntil).toLocaleDateString('es-CO') : '–'],
+      ['Próx. Mantenimiento', a.nextMaintenance ? new Date((a as any).nextMaintenance).toLocaleDateString('es-CO') : '–'],
+    ];
+    row3.forEach(([label, value], i) => {
+      const x = margin + i * col;
+      doc.rect(x, y, col - 4, boxH).fill(i % 2 === 0 ? lightGray : white).stroke('#CCCCCC');
+      doc.fillColor(blue).fontSize(7).font('Helvetica-Bold').text(label.toUpperCase(), x + 6, y + 4, { width: col - 16 });
+      doc.fillColor(darkGray).fontSize(9).font('Helvetica').text(String(value), x + 6, y + 14, { width: col - 16 });
+    });
+    y += boxH + 10;
+
+    // Section helper
+    const section = (title: string) => {
+      doc.rect(margin, y, cw, 20).fill(blue);
+      doc.fillColor(white).fontSize(9).font('Helvetica-Bold').text(title.toUpperCase(), margin + 8, y + 6, { width: cw });
+      y += 26;
+    };
+
+    // Network info
+    if ((a as any).ipAddress || (a as any).macAddress || (a as any).remoteAccess) {
+      section('Red y Acceso Remoto');
+      const netCols = [
+        ['Dirección IP', (a as any).ipAddress || '–'],
+        ['MAC Address', (a as any).macAddress || '–'],
+        ['Acceso Remoto', (a as any).remoteAccess || '–'],
+      ];
+      netCols.forEach(([label, value], i) => {
+        const x = margin + i * col;
+        doc.rect(x, y, col - 4, boxH).fill(i % 2 === 0 ? lightGray : white).stroke('#CCCCCC');
+        doc.fillColor(blue).fontSize(7).font('Helvetica-Bold').text(label.toUpperCase(), x + 6, y + 4, { width: col - 16 });
+        doc.fillColor(darkGray).fontSize(9).font('Helvetica').text(String(value), x + 6, y + 14, { width: col - 16 });
+      });
+      y += boxH + 10;
+    }
+
+    // Additional info
+    if ((a as any).supplier || (a as any).assignedUser || (a as any).responsible) {
+      section('Información Adicional');
+      const addCols = [
+        ['Proveedor', (a as any).supplier || '–'],
+        ['Usuario asignado', (a as any).assignedUser || '–'],
+        ['Responsable', (a as any).responsible || '–'],
+      ];
+      addCols.forEach(([label, value], i) => {
+        const x = margin + i * col;
+        doc.rect(x, y, col - 4, boxH).fill(i % 2 === 0 ? lightGray : white).stroke('#CCCCCC');
+        doc.fillColor(blue).fontSize(7).font('Helvetica-Bold').text(label.toUpperCase(), x + 6, y + 4, { width: col - 16 });
+        doc.fillColor(darkGray).fontSize(9).font('Helvetica').text(String(value), x + 6, y + 14, { width: col - 16 });
+      });
+      y += boxH + 10;
+    }
+
+    // Maintenance history
+    section('Historial de Mantenimiento');
+    if (maintenance.length === 0) {
+      doc.rect(margin, y, cw, 24).fill(lightGray);
+      doc.fillColor(darkGray).fontSize(9).font('Helvetica')
+        .text('Sin registros de mantenimiento', margin + 8, y + 8, { width: cw - 16 });
+      y += 30;
+    } else {
+      // Table header
+      const mCols = [
+        { label: 'Fecha', w: cw * 0.18 },
+        { label: 'Tipo', w: cw * 0.18 },
+        { label: 'Técnico', w: cw * 0.22 },
+        { label: 'Descripción', w: cw * 0.42 },
+      ];
+      doc.rect(margin, y, cw, 18).fill(lightBlue);
+      let tx = margin;
+      mCols.forEach(col => {
+        doc.fillColor(white).fontSize(8).font('Helvetica-Bold')
+          .text(col.label, tx + 4, y + 5, { width: col.w - 8 });
+        tx += col.w;
+      });
+      y += 18;
+
+      maintenance.forEach((m: any, mi: number) => {
+        if (y > 760) {
+          doc.addPage();
+          y = 50;
+          section('Historial de Mantenimiento (continuación)');
+        }
+        const rowH = 18;
+        doc.rect(margin, y, cw, rowH).fill(mi % 2 === 0 ? white : lightGray).stroke('#EEEEEE');
+        tx = margin;
+        const mVals = [
+          new Date(m.createdAt).toLocaleDateString('es-CO'),
+          m.type,
+          m.technician?.name || '–',
+          m.description,
+        ];
+        mVals.forEach((v, ci) => {
+          doc.fillColor(darkGray).fontSize(7.5).font('Helvetica')
+            .text(String(v), tx + 4, y + 5, { width: mCols[ci].w - 8, ellipsis: true });
+          tx += mCols[ci].w;
+        });
+        y += rowH;
+      });
+      y += 8;
+    }
+
+    // Footer
+    doc.moveTo(margin, Math.max(y + 10, 800)).lineTo(pageWidth - margin, Math.max(y + 10, 800)).stroke('#CCCCCC');
+    doc.fillColor(darkGray).fontSize(7)
+      .text(`${COMPANY.name} | ${COMPANY.address} | ${COMPANY.phone} | ${COMPANY.email}`,
+        margin, Math.max(y + 16, 806), { width: cw, align: 'center' });
+    doc.fillColor(darkGray).fontSize(7)
+      .text(`Hoja de vida generada el ${new Date().toLocaleDateString('es-CO')}`,
+        margin, Math.max(y + 26, 816), { width: cw, align: 'center' });
+
+    doc.end();
+    return new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
   }
 }
