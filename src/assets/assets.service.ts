@@ -210,22 +210,25 @@ export class AssetsService {
 
 
   private async fetchImageBuffer(url: string): Promise<Buffer | null> {
-    try {
+    const tryFetch = (u: string) => new Promise<Buffer>((resolve, reject) => {
       const https = require('https');
       const http = require('http');
-      const client = url.startsWith('https') ? https : http;
-      return await new Promise<Buffer>((resolve, reject) => {
-        const req = client.get(url, { timeout: 5000 }, (res: any) => {
-          if (res.statusCode !== 200) { reject(new Error('Not found')); return; }
-          const chunks: Buffer[] = [];
-          res.on('data', (c: Buffer) => chunks.push(c));
-          res.on('end', () => resolve(Buffer.concat(chunks)));
-          res.on('error', reject);
-        });
-        req.on('error', reject);
-        req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
+      const client = u.startsWith('https') ? https : http;
+      const req = client.get(u, { timeout: 8000 }, (res: any) => {
+        if (res.statusCode === 301 || res.statusCode === 302) {
+          tryFetch(res.headers.location).then(resolve).catch(reject);
+          return;
+        }
+        if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return; }
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => resolve(Buffer.concat(chunks)));
+        res.on('error', reject);
       });
-    } catch { return null; }
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
+    });
+    try { return await tryFetch(url); } catch { return null; }
   }
 
   async exportPDF(q: any = {}) {
@@ -245,19 +248,23 @@ export class AssetsService {
     const cw = pageWidth - margin * 2;
 
     // Header - white background
-    doc.rect(0, 0, pageWidth, 80).fill(white).stroke('#EEEEEE');
+    doc.rect(0, 0, pageWidth, 85).fill(white).stroke('#EEEEEE');
     const logoBuffer = await this.fetchImageBuffer(COMPANY.logoUrl);
     if (logoBuffer) {
-      try { doc.image(logoBuffer, margin, 10, { height: 55, fit: [160, 55] }); } catch {}
+      try { doc.image(logoBuffer, margin, 12, { height: 58, fit: [170, 58] }); } catch {
+        doc.fillColor(blue).fontSize(18).font('Helvetica-Bold').text(COMPANY.name, margin, 25);
+      }
+    } else {
+      doc.fillColor(blue).fontSize(18).font('Helvetica-Bold').text(COMPANY.name, margin, 25);
     }
-    doc.fillColor(blue).fontSize(16).font('Helvetica-Bold')
-      .text('INVENTARIO DE ACTIVOS TI', margin + 180, 20, { width: cw - 180, align: 'right' });
+    doc.fillColor(blue).fontSize(15).font('Helvetica-Bold')
+      .text('INVENTARIO DE ACTIVOS TI', margin + 190, 18, { width: cw - 190, align: 'right' });
     doc.fillColor(blue).fontSize(8).font('Helvetica')
-      .text(`${COMPANY.address} | ${COMPANY.phone} | ${COMPANY.email}`, margin + 180, 42, { width: cw - 180, align: 'right' });
+      .text(`${COMPANY.address} | ${COMPANY.phone} | ${COMPANY.email}`, margin + 190, 42, { width: cw - 190, align: 'right' });
     doc.fillColor(blue).fontSize(8)
-      .text(`Generado: ${new Date().toLocaleDateString('es-CO')}`, margin + 180, 56, { width: cw - 180, align: 'right' });
+      .text(`Generado: ${new Date().toLocaleDateString('es-CO')}`, margin + 190, 56, { width: cw - 190, align: 'right' });
     // Blue separator line
-    doc.rect(0, 78, pageWidth, 3).fill(lightBlue);
+    doc.rect(0, 83, pageWidth, 3).fill(lightBlue);
 
     let y = 95;
 
@@ -360,7 +367,11 @@ export class AssetsService {
     doc.rect(0, 0, pageWidth, 100).fill(white).stroke('#EEEEEE');
     const logoBuffer = await this.fetchImageBuffer(COMPANY.logoUrl);
     if (logoBuffer) {
-      try { doc.image(logoBuffer, margin, 15, { height: 60, fit: [160, 60] }); } catch {}
+      try { doc.image(logoBuffer, margin, 15, { height: 60, fit: [160, 60] }); } catch {
+        doc.fillColor(blue).fontSize(16).font('Helvetica-Bold').text(COMPANY.name, margin, 30);
+      }
+    } else {
+      doc.fillColor(blue).fontSize(16).font('Helvetica-Bold').text(COMPANY.name, margin, 30);
     }
     doc.fillColor(blue).fontSize(8).font('Helvetica')
       .text(COMPANY.address, pageWidth - 210, 20, { width: 165, align: 'right' })
