@@ -143,6 +143,7 @@ model ServiceReport {
   clientSignature String?     @map("client_signature")
   techSignature   String?     @map("tech_signature")
   emailSent       Boolean     @default(false) @map("email_sent")
+  receivedBy       String?      @map("received_by")
   createdAt       DateTime    @default(now()) @map("created_at")
   client          Client      @relation(fields: [clientId], references: [id])
   technician      User?       @relation(fields: [technicianId], references: [id])
