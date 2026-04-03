@@ -82,12 +82,15 @@ export class ReportsService {
       const http = require('http');
       const client = url.startsWith('https') ? https : http;
       return await new Promise<Buffer>((resolve, reject) => {
-        client.get(url, (res: any) => {
+        const req = client.get(url, { timeout: 5000 }, (res: any) => {
+          if (res.statusCode !== 200) { reject(new Error('Not found')); return; }
           const chunks: Buffer[] = [];
           res.on('data', (c: Buffer) => chunks.push(c));
           res.on('end', () => resolve(Buffer.concat(chunks)));
           res.on('error', reject);
-        }).on('error', reject);
+        });
+        req.on('error', reject);
+        req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
       });
     } catch { return null; }
   }
@@ -234,9 +237,6 @@ export class ReportsService {
     // Signatures
     y += 10;
     section('Firmas');
-
-    // Check if new page needed
-    if (y > 680) { doc.addPage(); y = 50; }
 
     const sigW = cw / 2 - 10;
 
