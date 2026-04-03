@@ -50,7 +50,7 @@ export class ReportsService {
   async create(dto: any) {
     const count = await this.prisma.serviceReport.count();
     const reportNumber = `RPT-${String(count + 1).padStart(5, '0')}`;
-    const { assetIds, observations, conclusion, signatureUrl, ...data } = dto;
+    const { assetIds, observations, conclusion, signatureUrl, receivedBy, ...data } = dto;
     const rpt = await this.prisma.serviceReport.create({
       data: {
         reportNumber,
@@ -62,6 +62,7 @@ export class ReportsService {
         workDone: observations || undefined,
         recommendations: conclusion || undefined,
         clientSignature: signatureUrl || undefined,
+        receivedBy: receivedBy || undefined,
         assets: assetIds?.length
           ? { create: assetIds.map((a: any) => ({ assetId: typeof a === 'string' ? a : a.id })) }
           : undefined,
@@ -113,7 +114,7 @@ export class ReportsService {
     const assets = (rpt as any).assets || [];
 
     // HEADER
-    doc.rect(0, 0, pageWidth, 110).fill(blue);
+    doc.rect(0, 0, pageWidth, 110).fill(white).stroke('#EEEEEE');
 
     // Logo
     const logoBuffer = await this.fetchImageBuffer(COMPANY.logoUrl);
@@ -122,7 +123,7 @@ export class ReportsService {
     }
 
     // Company info right side
-    doc.fillColor(white).fontSize(8).font('Helvetica')
+    doc.fillColor(blue).fontSize(8).font('Helvetica')
       .text(COMPANY.address, pageWidth - 210, 22, { width: 165, align: 'right' })
       .text(`Tel: ${COMPANY.phone}`, pageWidth - 210, 36, { width: 165, align: 'right' })
       .text(`Cel: ${COMPANY.mobile}`, pageWidth - 210, 48, { width: 165, align: 'right' })
@@ -160,7 +161,7 @@ export class ReportsService {
     const infos2 = [
       ['Cliente', client?.businessName || '–'],
       ['Técnico', technician?.name || '–'],
-      ['Recibe', client?.contactName || '–'],
+      ['Recibe', (rpt as any).receivedBy || client?.contactName || '–'],
     ];
 
     infos2.forEach(([label, value], i) => {
@@ -251,7 +252,7 @@ export class ReportsService {
     doc.rect(margin, y + 62, sigW, 18).fill(lightGray);
     doc.fillColor(blue).fontSize(8).font('Helvetica-Bold')
       .text('FIRMA CLIENTE', margin + 4, y + 67, { width: sigW - 8 });
-    const receiverName = client?.contactName || client?.businessName || '–';
+    const receiverName = (rpt as any).receivedBy || client?.contactName || client?.businessName || '–';
     doc.fillColor(darkGray).fontSize(8).font('Helvetica')
       .text(receiverName, margin + 4, y + 78, { width: sigW - 8 });
 
@@ -264,14 +265,12 @@ export class ReportsService {
     doc.fillColor(darkGray).fontSize(8).font('Helvetica')
       .text(technician?.name || '–', tx2 + 4, y + 78, { width: sigW - 8 });
 
-    y += 100;
-
-    // Footer
-    doc.rect(0, 800, pageWidth, 41).fill(blue);
-    doc.fillColor(white).fontSize(7).font('Helvetica')
-      .text(`${COMPANY.name} | ${COMPANY.address} | ${COMPANY.phone} | ${COMPANY.email} | ${COMPANY.web}`, margin, 812, { width: cw, align: 'center' });
-    doc.fillColor(lightBlue).fontSize(7)
-      .text(`Reporte generado el ${new Date().toLocaleDateString('es-CO')}`, margin, 824, { width: cw, align: 'center' });
+    // Footer - simple line
+    doc.moveTo(margin, 800).lineTo(pageWidth - margin, 800).stroke('#CCCCCC');
+    doc.fillColor(gray).fontSize(7).font('Helvetica')
+      .text(`${COMPANY.name} | ${COMPANY.address} | ${COMPANY.phone} | ${COMPANY.email} | ${COMPANY.web}`, margin, 806, { width: cw, align: 'center' });
+    doc.fillColor(gray).fontSize(7)
+      .text(`Reporte generado el ${new Date().toLocaleDateString('es-CO')}`, margin, 818, { width: cw, align: 'center' });
 
     doc.end();
     return new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
@@ -325,7 +324,7 @@ export class ReportsService {
           <td style="padding:8px;background:#f5f5f5"><strong style="color:#0A4F8C">Técnico:</strong><br>${technician?.name||'–'}</td>
         </tr>
         <tr>
-          <td style="padding:8px;background:#f5f5f5" colspan="2"><strong style="color:#0A4F8C">Persona que recibe:</strong> ${client?.contactName||'–'}</td>
+          <td style="padding:8px;background:#f5f5f5" colspan="2"><strong style="color:#0A4F8C">Persona que recibe:</strong> ${(rpt as any).receivedBy || client?.contactName || '–'}</td>
         </tr>
       </table>
 
