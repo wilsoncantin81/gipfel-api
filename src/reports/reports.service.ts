@@ -69,6 +69,26 @@ export class ReportsService {
       },
       include: { client: true, technician: { select: { id: true, name: true } } },
     });
+
+    // Auto-create maintenance records for each asset
+    if (assetIds?.length) {
+      for (const a of assetIds) {
+        const assetId = typeof a === 'string' ? a : a.id;
+        const workDetail = typeof a === 'object' ? a.workDetail : undefined;
+        try {
+          await this.prisma.maintenanceRecord.create({
+            data: {
+              assetId,
+              technicianId: data.technicianId || undefined,
+              type: 'CORRECTIVO',
+              description: data.description || 'Servicio técnico',
+              findings: workDetail || observations || undefined,
+            },
+          });
+        } catch {}
+      }
+    }
+
     return rpt;
   }
 
