@@ -107,42 +107,59 @@ export class AssetsService {
     const ExcelJS = require('exceljs');
     const wb = new ExcelJS.Workbook();
     wb.creator = 'Grupo Gipfel';
-    const ws = wb.addWorksheet('Inventario de Activos', { pageSetup: { orientation: 'landscape' } });
+    const ws = wb.addWorksheet('Inventario de Activos');
 
-    // Header row with company info
-    ws.mergeCells('A1:S1');
-    ws.getCell('A1').value = 'GRUPO GIPFEL — INVENTARIO DE ACTIVOS TI';
-    ws.getCell('A1').font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
-    ws.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0A4F8C' } };
-    ws.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
+    const blue = { argb: 'FF0A4F8C' };
+    const lightBlue = { argb: 'FF00AEEF' };
+    const white = { argb: 'FFFFFFFF' };
+    const lightBg = { argb: 'FFF0F7FF' };
+
+    // Row 1: Company title
+    const headers = ['Código','Nombre','Tipo','Cliente','Marca','Modelo','Serial','Estado','Ubicación','Proveedor','Usuario Asignado','Responsable','IP','MAC','Acceso Remoto','F. Compra','Garantía','Próx. Mant.','Notas'];
+    const totalCols = headers.length;
+
+    ws.mergeCells(1, 1, 1, totalCols);
+    const titleCell = ws.getCell(1, 1);
+    titleCell.value = 'GRUPO GIPFEL — INVENTARIO DE ACTIVOS TI';
+    titleCell.font = { bold: true, size: 14, color: white };
+    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: blue };
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
     ws.getRow(1).height = 30;
 
-    ws.mergeCells('A2:S2');
-    ws.getCell('A2').value = `${COMPANY.address} | Tel: ${COMPANY.phone} | ${COMPANY.email} | Generado: ${new Date().toLocaleDateString('es-CO')}`;
-    ws.getCell('A2').font = { size: 9, color: { argb: 'FFFFFFFF' } };
-    ws.getCell('A2').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF00AEEF' } };
-    ws.getCell('A2').alignment = { horizontal: 'center' };
+    ws.mergeCells(2, 1, 2, totalCols);
+    const subCell = ws.getCell(2, 1);
+    subCell.value = `${COMPANY.address} | Tel: ${COMPANY.phone} | ${COMPANY.email} | Generado: ${new Date().toLocaleDateString('es-CO')}`;
+    subCell.font = { size: 9, color: white };
+    subCell.fill = { type: 'pattern', pattern: 'solid', fgColor: lightBlue };
+    subCell.alignment = { horizontal: 'center' };
     ws.getRow(2).height = 18;
 
-    // Column headers - ALL fields
-    const headers = ['Código', 'Nombre', 'Tipo', 'Cliente', 'Marca', 'Modelo', 'Serial', 'Estado', 'Ubicación', 'Proveedor', 'Usuario asignado', 'Responsable', 'IP', 'MAC', 'Acceso Remoto', 'F. Compra', 'Garantía', 'Próx. Mant.', 'Notas'];
-    const widths =  [14,       28,       18,     25,        15,       15,       20,       12,       18,           18,           20,                  18,             15,    17,    18,               14,          14,          14,           25];
-
+    // Row 3: Headers
+    const widths = [14,28,18,25,15,15,20,12,18,18,20,18,15,17,18,14,14,14,25];
     headers.forEach((h, i) => {
-      const cell = ws.getCell(i + 1, 3);
+      const cell = ws.getCell(3, i + 1);
       cell.value = h;
-      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 9 };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0A4F8C' } };
+      cell.font = { bold: true, color: white, size: 9 };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: blue };
       cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-      cell.border = { bottom: { style: 'thin', color: { argb: 'FF00AEEF' } } };
+      cell.border = { bottom: { style: 'thin', color: lightBlue } };
       ws.getColumn(i + 1).width = widths[i];
     });
     ws.getRow(3).height = 22;
 
     // Data rows
     assets.forEach((a: any, idx: number) => {
-      const row = ws.getRow(idx + 4);
-      const bg = idx % 2 === 0 ? 'FFFFFFFF' : 'FFF0F7FF';
+      const bg = idx % 2 === 0 ? white : lightBg;
+      
+      // Get extra fields as string
+      let extraStr = '';
+      try {
+        const ef = Array.isArray((a as any).extraFields)
+          ? (a as any).extraFields
+          : Object.entries((a as any).extraFields || {}).map(([k, v]) => ({ k, v }));
+        extraStr = ef.map((f: any) => `${f.k}: ${f.v}`).join(' | ');
+      } catch {}
+
       const vals = [
         a.inventoryCode || '',
         a.name,
@@ -162,12 +179,13 @@ export class AssetsService {
         a.purchaseDate ? new Date(a.purchaseDate).toLocaleDateString('es-CO') : '',
         a.warrantyUntil ? new Date(a.warrantyUntil).toLocaleDateString('es-CO') : '',
         a.nextMaintenance ? new Date(a.nextMaintenance).toLocaleDateString('es-CO') : '',
-        a.notes || '',
+        extraStr,
       ];
+
       vals.forEach((v, i) => {
-        const cell = row.getCell(i + 1);
+        const cell = ws.getCell(idx + 4, i + 1);
         cell.value = v;
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: bg };
         cell.font = { size: 9 };
         cell.alignment = { vertical: 'middle' };
         cell.border = { bottom: { style: 'hair', color: { argb: 'FFDDDDDD' } } };
@@ -175,19 +193,21 @@ export class AssetsService {
           cell.font = { size: 9, bold: true, color: { argb: v === 'ACTIVO' ? 'FF27AE60' : v === 'EN_MANTENIMIENTO' ? 'FFF39C12' : 'FFE74C3C' } };
         }
       });
-      row.height = 16;
+      ws.getRow(idx + 4).height = 16;
     });
 
-    // Summary row
+    // Summary
     const lastRow = assets.length + 4;
-    ws.mergeCells(`A${lastRow}:S${lastRow}`);
-    const sumRow = ws.getRow(lastRow);
-    sumRow.getCell(1).value = `Total de activos: ${assets.length}`;
-    sumRow.getCell(1).font = { bold: true, size: 10 };
-    sumRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F4FD' } };
+    ws.mergeCells(lastRow, 1, lastRow, totalCols);
+    const sumCell = ws.getCell(lastRow, 1);
+    sumCell.value = `Total de activos: ${assets.length}`;
+    sumCell.font = { bold: true, size: 10, color: blue };
+    sumCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F4FD' } };
+    ws.getRow(lastRow).height = 18;
 
     return wb.xlsx.writeBuffer();
   }
+
 
   private async fetchImageBuffer(url: string): Promise<Buffer | null> {
     try {
