@@ -32,7 +32,7 @@ export class AssetsService {
     ];
     return this.prisma.asset.findMany({
       where,
-      include: { client: { select: { id: true, businessName: true } }, assetType: true },
+      include: { client: { select: { id: true, businessName: true } }, assetType: { include: { _count: { select: { assets: true } } } } },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -70,7 +70,23 @@ export class AssetsService {
       ipAddress: dto.ipAddress || undefined,
       macAddress: dto.macAddress || undefined,
       remoteAccess: dto.remoteAccess || undefined,
-      extraFields: dto.extraFields ? (Array.isArray(dto.extraFields) ? dto.extraFields : []) : undefined,
+      // Merge extraFields (object) and dynFields into a single object for storage
+      extraFields: (() => {
+        const merged: Record<string, any> = {};
+        // From extraFields (can be object or array)
+        if (dto.extraFields) {
+          if (Array.isArray(dto.extraFields)) {
+            dto.extraFields.forEach((f: any) => { if (f.k) merged[f.k] = f.v; });
+          } else if (typeof dto.extraFields === 'object') {
+            Object.assign(merged, dto.extraFields);
+          }
+        }
+        // From dynFields
+        if (dto.dynFields && typeof dto.dynFields === 'object') {
+          Object.assign(merged, dto.dynFields);
+        }
+        return Object.keys(merged).length > 0 ? merged : undefined;
+      })(),
     };
   }
 
@@ -202,14 +218,14 @@ export class AssetsService {
         extraStr,
       ];
 
-      // Add dynamic fieldSchema values
-      const dynFields = (a as any).extraFields || {};
+      // Add dynamic fieldSchema values from extraFields (stored as object {key: value})
+      const ef = (a as any).extraFields || {};
       const dynVals = allFieldKeys.map((k: string) => {
-        if (Array.isArray(dynFields)) {
-          const f = dynFields.find((x: any) => x.k === k);
-          return f ? f.v : '';
+        if (Array.isArray(ef)) {
+          const found = ef.find((x: any) => x.k === k);
+          return found ? String(found.v || '') : '';
         }
-        return dynFields[k] || '';
+        return ef[k] !== undefined ? String(ef[k]) : '';
       });
 
       vals.forEach((v, i) => {
@@ -516,9 +532,10 @@ export class AssetsService {
     }
 
     // Extra fields / Specs
-    const extraFields = Array.isArray((a as any).extraFields)
-      ? (a as any).extraFields
-      : Object.entries((a as any).extraFields || {}).map(([k, v]) => ({ k, v }));
+    const efRaw = (a as any).extraFields || {};
+    const extraFields = Array.isArray(efRaw)
+      ? efRaw
+      : Object.entries(efRaw).map(([k, v]) => ({ k, v }));
     if (extraFields.length > 0) {
       section('Especificaciones Técnicas Adicionales');
       extraFields.forEach((f: any, fi: number) => {
