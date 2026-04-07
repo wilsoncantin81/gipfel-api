@@ -148,6 +148,25 @@ export class AssetsService {
     });
     ws.getRow(3).height = 22;
 
+    // Collect all unique fieldSchema keys across all asset types
+    const allFieldKeys: string[] = [];
+    assets.forEach((a: any) => {
+      const schema = (a.assetType?.fieldSchema as string[]) || [];
+      schema.forEach((k: string) => { if (!allFieldKeys.includes(k)) allFieldKeys.push(k); });
+    });
+
+    // Add dynamic fieldSchema column headers
+    if (allFieldKeys.length > 0) {
+      allFieldKeys.forEach((k, i) => {
+        const cell = ws.getCell(3, 20 + i);
+        cell.value = k;
+        cell.font = { bold: true, color: white, size: 9 };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A6B3C' } };
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+        ws.getColumn(20 + i).width = 18;
+      });
+    }
+
     // Data rows
     assets.forEach((a: any, idx: number) => {
       const bg = idx % 2 === 0 ? white : lightBg;
@@ -183,6 +202,16 @@ export class AssetsService {
         extraStr,
       ];
 
+      // Add dynamic fieldSchema values
+      const dynFields = (a as any).extraFields || {};
+      const dynVals = allFieldKeys.map((k: string) => {
+        if (Array.isArray(dynFields)) {
+          const f = dynFields.find((x: any) => x.k === k);
+          return f ? f.v : '';
+        }
+        return dynFields[k] || '';
+      });
+
       vals.forEach((v, i) => {
         const cell = ws.getCell(idx + 4, i + 1);
         cell.value = v;
@@ -194,12 +223,22 @@ export class AssetsService {
           cell.font = { size: 9, bold: true, color: { argb: v === 'ACTIVO' ? 'FF27AE60' : v === 'EN_MANTENIMIENTO' ? 'FFF39C12' : 'FFE74C3C' } };
         }
       });
+      // Write dynamic fieldSchema values
+      dynVals.forEach((v: any, i: number) => {
+        const cell = ws.getCell(idx + 4, 20 + i);
+        cell.value = v;
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: bg };
+        cell.font = { size: 9 };
+        cell.alignment = { vertical: 'middle' };
+        cell.border = { bottom: { style: 'hair', color: { argb: 'FFDDDDDD' } } };
+      });
       ws.getRow(idx + 4).height = 16;
     });
 
     // Summary
     const lastRow = assets.length + 4;
-    ws.mergeCells(lastRow, 1, lastRow, totalCols);
+    const totalColsWithDyn = totalCols + allFieldKeys.length;
+    ws.mergeCells(lastRow, 1, lastRow, totalColsWithDyn);
     const sumCell = ws.getCell(lastRow, 1);
     sumCell.value = `Total de activos: ${assets.length}`;
     sumCell.font = { bold: true, size: 10, color: blue };
