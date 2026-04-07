@@ -62,6 +62,7 @@ model AssetType {
   description String?
   icon        String?
   isActive    Boolean  @default(true) @map("is_active")
+  fieldSchema      Json?        @map("field_schema")
   createdAt   DateTime @default(now()) @map("created_at")
   assets      Asset[]
   @@map("asset_types")
