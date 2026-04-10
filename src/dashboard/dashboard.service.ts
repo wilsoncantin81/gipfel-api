@@ -8,9 +8,12 @@ export class DashboardService {
   async getKPIs() {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const in90 = new Date(now.getTime() + 90 * 86400000);
-    const in30 = new Date(now.getTime() + 30 * 86400000);
-    const [totalClients, activeClients, totalAssets, activeAssets, openTickets, criticalTickets, pendingWilson, reportsThisMonth, warrantyExpiring, maintDue, unreadAlerts, salesThisMonth, pendingCommissions] = await Promise.all([
+    const in90 = new Date(now.getTime() + 90*86400000);
+    const in30 = new Date(now.getTime() + 30*86400000);
+    const [totalClients, activeClients, totalAssets, activeAssets,
+      openTickets, criticalTickets, pendingWilson,
+      reportsThisMonth, warrantyExpiring, maintDue, unreadAlerts,
+      salesThisMonth, pendingCommissions] = await Promise.all([
       this.prisma.client.count(),
       this.prisma.client.count({ where: { status: 'ACTIVO' } }),
       this.prisma.asset.count(),
@@ -25,26 +28,39 @@ export class DashboardService {
       this.prisma.ticket.aggregate({ where: { status: 'CERRADO', resolvedAt: { gte: startOfMonth } }, _sum: { salePrice: true, utility: true } }),
       this.prisma.commission.aggregate({ where: { status: 'PENDIENTE' }, _sum: { amount: true } }),
     ]);
+    // Count tickets by status
+    const statuses = ['NUEVO','EN_EJECUCION','POR_CONFIRMACION','PENDIENTE_WILSON','POR_FACTURACION','CERRADO'];
+    const statusCounts = await Promise.all(
+      statuses.map(s => this.prisma.ticket.count({ where: { status: s as any } }))
+    );
+    const ticketsByStatus: Record<string,number> = {};
+    statuses.forEach((s, i) => { ticketsByStatus[s] = statusCounts[i]; });
+
     return {
       clients: { total: totalClients, active: activeClients },
       assets: { total: totalAssets, active: activeAssets },
       tickets: { open: openTickets, critical: criticalTickets, pendingWilson },
       reports: { thisMonth: reportsThisMonth },
       alerts: { warrantyExpiring, maintenanceDue: maintDue, unread: unreadAlerts },
-      financials: { salesThisMonth: salesThisMonth._sum.salePrice || 0, utilityThisMonth: salesThisMonth._sum.utility || 0, pendingCommissions: pendingCommissions._sum.amount || 0 },
+      financials: {
+        salesThisMonth: salesThisMonth._sum.salePrice || 0,
+        utilityThisMonth: salesThisMonth._sum.utility || 0,
+        pendingCommissions: pendingCommissions._sum.amount || 0,
+      },
+      ticketsByStatus,
     };
   }
 
   async getRecentActivity(limit = 10) {
     return this.prisma.maintenanceRecord.findMany({
-      take: limit,
+      take: Number(limit),
       orderBy: { createdAt: 'desc' },
       include: { asset: { include: { client: true, assetType: true } }, technician: { select: { name: true } } },
     });
   }
 
   async getWarrantyExpiring() {
-    const in90 = new Date(Date.now() + 90 * 86400000);
+    const in90 = new Date(Date.now() + 90*86400000);
     return this.prisma.asset.findMany({
       where: { warrantyUntil: { lte: in90 }, status: 'ACTIVO' },
       include: { client: { select: { businessName: true } }, assetType: true },
@@ -53,7 +69,7 @@ export class DashboardService {
   }
 
   async getMaintenanceDue() {
-    const in30 = new Date(Date.now() + 30 * 86400000);
+    const in30 = new Date(Date.now() + 30*86400000);
     return this.prisma.asset.findMany({
       where: { nextMaintenance: { lte: in30 }, status: 'ACTIVO' },
       include: { client: { select: { businessName: true } }, assetType: true },
@@ -88,7 +104,7 @@ export class DashboardService {
 
   async getFinancialSummary(query: any) {
     const where: any = { status: 'CERRADO' };
-    if (query.from) where.resolvedAt = { gte: new Date(query.from) };
+    if (query.from) where.resolvedAt = { ...where.resolvedAt, gte: new Date(query.from) };
     if (query.to) where.resolvedAt = { ...where.resolvedAt, lte: new Date(query.to) };
     if (query.technicianId) where.assignedToId = query.technicianId;
     const tickets = await this.prisma.ticket.findMany({
@@ -96,14 +112,11 @@ export class DashboardService {
       include: { client: true, assignedTo: { select: { id: true, name: true } }, commission: true },
       orderBy: { resolvedAt: 'desc' },
     });
-    return {
-      tickets,
-      totalSales: tickets.reduce((s, t) => s + (t.salePrice || 0), 0),
-      totalCosts: tickets.reduce((s, t) => s + (t.totalCost || 0), 0),
-      totalUtility: tickets.reduce((s, t) => s + (t.utility || 0), 0),
-      totalCommissions: tickets.reduce((s, t) => s + ((t.commission as any)?.amount || 0), 0),
-      count: tickets.length,
-    };
+    const totalSales = tickets.reduce((s, t) => s + (t.salePrice || 0), 0);
+    const totalCosts = tickets.reduce((s, t) => s + (t.totalCost || 0), 0);
+    const totalUtility = tickets.reduce((s, t) => s + (t.utility || 0), 0);
+    const totalCommissions = tickets.reduce((s, t) => s + (t.commission?.amount || 0), 0);
+    return { tickets, totalSales, totalCosts, totalUtility, totalCommissions, count: tickets.length };
   }
 
   async getCommissions(query: any) {
@@ -115,15 +128,16 @@ export class DashboardService {
       include: { user: { select: { id: true, name: true, email: true } }, ticket: { include: { client: true } } },
       orderBy: { createdAt: 'desc' },
     });
-    return {
-      commissions,
-      totalPending: commissions.filter(c => c.status === 'PENDIENTE').reduce((s, c) => s + c.amount, 0),
-      totalPaid: commissions.filter(c => c.status === 'PAGADA').reduce((s, c) => s + c.amount, 0),
-    };
+    const totalPending = commissions.filter(c => c.status === 'PENDIENTE').reduce((s, c) => s + c.amount, 0);
+    const totalPaid = commissions.filter(c => c.status === 'PAGADA').reduce((s, c) => s + c.amount, 0);
+    return { commissions, totalPending, totalPaid };
   }
 
   async payCommission(id: string, notes?: string) {
-    return this.prisma.commission.update({ where: { id }, data: { status: 'PAGADA', paidAt: new Date(), notes } });
+    return this.prisma.commission.update({
+      where: { id },
+      data: { status: 'PAGADA', paidAt: new Date(), notes },
+    });
   }
 
   async exportFinancials(query: any) {
@@ -141,6 +155,7 @@ export class DashboardService {
       { header: 'Costos', key: 'cost', width: 14 },
       { header: 'Utilidad', key: 'utility', width: 14 },
       { header: 'Comisión', key: 'commission', width: 14 },
+      { header: 'Estado comisión', key: 'commStatus', width: 18 },
     ];
     ws.getRow(1).font = { bold: true };
     tickets.forEach((t: any) => ws.addRow({
@@ -149,7 +164,7 @@ export class DashboardService {
       date: t.resolvedAt ? new Date(t.resolvedAt).toLocaleDateString('es-CO') : '',
       invoice: t.invoiceNumber || '', sale: t.salePrice || 0,
       cost: t.totalCost || 0, utility: t.utility || 0,
-      commission: t.commission?.amount || 0,
+      commission: t.commission?.amount || 0, commStatus: t.commission?.status || 'N/A',
     }));
     return wb.xlsx.writeBuffer();
   }
