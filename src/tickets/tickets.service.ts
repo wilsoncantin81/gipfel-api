@@ -23,7 +23,7 @@ export class TicketsService {
   }
 
   async findOne(id: string) {
-    return this.prisma.ticket.findUnique({
+    const ticket = await this.prisma.ticket.findUnique({
       where: { id },
       include: {
         client: true,
@@ -35,6 +35,11 @@ export class TicketsService {
         commission: { include: { user: { select: { id: true, name: true } } } },
       },
     });
+    // Add status logs
+    const statusLogs = await (this.prisma as any).$queryRaw`
+      SELECT * FROM ticket_status_logs WHERE ticket_id = ${id} ORDER BY changed_at ASC
+    `;
+    return { ...ticket, statusLogs };
   }
 
   async getTask(id: string) {
@@ -69,16 +74,28 @@ export class TicketsService {
     if (tasks && tasks.length > 0) {
       data.tasks = { create: tasks.map((title: string, i: number) => ({ title, order: i })) };
     }
-    return this.prisma.ticket.create({ data, include: { client: true } });
+    const ticket = await this.prisma.ticket.create({ data, include: { client: true } });
+    // Log initial status
+    await this.logStatusChange(ticket.id, 'NUEVO', rest.userId);
+    return ticket;
   }
 
   async update(id: string, dto: any) {
     return this.prisma.ticket.update({ where: { id }, data: dto });
   }
 
-  async updateStatus(id: string, body: any) {
-    const { status, conclusion, invoiceNumber, salePrice } = body;
-    
+  private async logStatusChange(ticketId: string, status: string, userId?: string) {
+    try {
+      await (this.prisma as any).$executeRaw`
+        INSERT INTO ticket_status_logs (id, ticket_id, status, changed_at, changed_by)
+        VALUES (gen_random_uuid()::text, ${ticketId}, ${status}, now(), ${userId || null})
+      `;
+    } catch {}
+  }
+
+  async updateStatus(id: string, body: any, userId?: string) {
+    const { status, conclusion, invoiceNumber, salePrice, reportId } = body;
+
     if (status === 'CERRADO') {
       const ticket = await this.prisma.ticket.findUnique({ where: { id } });
       if (!ticket?.invoiceNumber && !invoiceNumber) {
@@ -93,6 +110,7 @@ export class TicketsService {
     if (conclusion) data.conclusion = conclusion;
     if (invoiceNumber) data.invoiceNumber = invoiceNumber;
     if (salePrice !== undefined) data.salePrice = salePrice;
+    if (reportId !== undefined) data.reportId = reportId || null;
     if (status === 'CERRADO') {
       data.resolvedAt = new Date();
       const ticket = await this.prisma.ticket.findUnique({ where: { id } });
@@ -100,7 +118,6 @@ export class TicketsService {
       const finalCost = ticket?.totalCost || 0;
       const utility = finalSalePrice - finalCost;
       data.utility = utility;
-      
       if (ticket?.assignedToId && utility > 0) {
         await this.prisma.commission.upsert({
           where: { ticketId: id },
@@ -110,7 +127,9 @@ export class TicketsService {
       }
     }
 
-    return this.prisma.ticket.update({ where: { id }, data });
+    const updated = await this.prisma.ticket.update({ where: { id }, data });
+    await this.logStatusChange(id, status, userId);
+    return updated;
   }
 
   async updateBilling(id: string, body: any) {
@@ -126,6 +145,26 @@ export class TicketsService {
     }
     if (conclusion !== undefined) data.conclusion = conclusion;
     return this.prisma.ticket.update({ where: { id }, data });
+  }
+
+  async getStatusLogs(id: string) {
+    const logs: any[] = await (this.prisma as any).$queryRaw`
+      SELECT l.*, u.name as user_name
+      FROM ticket_status_logs l
+      LEFT JOIN users u ON l.changed_by = u.id
+      WHERE l.ticket_id = ${id}
+      ORDER BY l.changed_at ASC
+    `;
+    // Calculate duration between statuses
+    return logs.map((log, i) => ({
+      ...log,
+      changedAt: log.changed_at,
+      status: log.status,
+      userName: log.user_name,
+      durationMs: i < logs.length - 1
+        ? new Date(logs[i + 1].changed_at).getTime() - new Date(log.changed_at).getTime()
+        : Date.now() - new Date(log.changed_at).getTime(),
+    }));
   }
 
   async addTask(ticketId: string, title: string) {
