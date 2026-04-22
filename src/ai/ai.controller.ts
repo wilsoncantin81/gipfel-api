@@ -34,7 +34,11 @@ Responde SOLO con el texto mejorado, sin explicaciones adicionales, en español,
       }),
     });
 
-    if (!response.ok) throw new Error('Error calling AI');
+    if (!response.ok) {
+      const errBody = await response.text();
+      console.error('Anthropic error:', response.status, errBody);
+      throw new Error(`Anthropic error ${response.status}: ${errBody}`);
+    }
     const data = await response.json();
     return { improved: data.content?.[0]?.text || text };
   }
