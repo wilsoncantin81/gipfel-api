@@ -13,6 +13,7 @@ import { TicketsModule } from './tickets/tickets.module';
 import { FilesModule } from './files/files.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { AiController } from './ai/ai.controller';
 
 @Module({
   imports: [
@@ -31,5 +32,6 @@ import { DashboardModule } from './dashboard/dashboard.module';
     AlertsModule,
     DashboardModule,
   ],
+  controllers: [AiController],
 })
 export class AppModule {}
