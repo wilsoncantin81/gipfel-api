@@ -20,26 +20,29 @@ Texto original: ${text}
 
 Responde SOLO con el texto mejorado, sin explicaciones adicionales, en español, máximo 3 oraciones.`;
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY || '',
-        'anthropic-version': '2023-06-01',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'gpt-4o-mini',
         max_tokens: 500,
-        messages: [{ role: 'user', content: prompt }],
+        messages: [
+          { role: 'system', content: 'Eres un asistente técnico profesional de soporte informático.' },
+          { role: 'user', content: prompt }
+        ],
       }),
     });
 
     if (!response.ok) {
       const errBody = await response.text();
-      console.error('Anthropic error:', response.status, errBody);
-      throw new Error(`Anthropic error ${response.status}: ${errBody}`);
+      console.error('OpenAI error:', response.status, errBody);
+      throw new Error(`OpenAI error ${response.status}: ${errBody}`);
     }
+
     const data = await response.json();
-    return { improved: data.content?.[0]?.text || text };
+    return { improved: data.choices?.[0]?.message?.content || text };
   }
 }
