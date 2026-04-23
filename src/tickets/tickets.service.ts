@@ -106,24 +106,35 @@ export class TicketsService {
       }
     }
 
+    const { closureType, commissionPercentage } = body;
     const data: any = { status };
     if (conclusion) data.conclusion = conclusion;
     if (invoiceNumber) data.invoiceNumber = invoiceNumber;
     if (salePrice !== undefined) data.salePrice = salePrice;
     if (reportId !== undefined) data.reportId = reportId || null;
+    if (closureType) data.closureType = closureType;
     if (status === 'CERRADO') {
       data.resolvedAt = new Date();
       const ticket = await this.prisma.ticket.findUnique({ where: { id } });
-      const finalSalePrice = salePrice || ticket?.salePrice || 0;
+      // Only calculate sale for NORMAL closure type
+      const isNormal = !closureType || closureType === 'NORMAL';
+      const finalSalePrice = isNormal ? (salePrice || ticket?.salePrice || 0) : 0;
       const finalCost = ticket?.totalCost || 0;
       const utility = finalSalePrice - finalCost;
       data.utility = utility;
-      if (ticket?.assignedToId && utility > 0) {
+      data.salePrice = finalSalePrice;
+      // Handle commission
+      const commPct = commissionPercentage !== undefined ? Number(commissionPercentage) : 10;
+      if (ticket?.assignedToId && utility > 0 && commPct > 0) {
+        const commAmount = utility * (commPct / 100);
         await this.prisma.commission.upsert({
           where: { ticketId: id },
-          create: { ticketId: id, userId: ticket.assignedToId, amount: utility * 0.1, percentage: 10 },
-          update: { amount: utility * 0.1 },
+          create: { ticketId: id, userId: ticket.assignedToId, amount: commAmount, percentage: commPct },
+          update: { amount: commAmount, percentage: commPct },
         });
+      } else if (commPct === 0) {
+        // Delete commission if exists
+        await this.prisma.commission.deleteMany({ where: { ticketId: id } }).catch(() => {});
       }
     }
 
