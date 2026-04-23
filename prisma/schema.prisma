@@ -187,6 +187,7 @@ model Ticket {
   utility        Float?
   slaHours       Int?          @map("sla_hours")
   resolvedAt     DateTime?     @map("resolved_at")
+  closureType      String?      @map("closure_type")
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
   client         Client        @relation(fields: [clientId], references: [id])
