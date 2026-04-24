@@ -97,12 +97,12 @@ export class TicketsService {
     const { status, conclusion, invoiceNumber, salePrice, reportId } = body;
 
     if (status === 'CERRADO') {
-      const ticket = await this.prisma.ticket.findUnique({ where: { id } });
-      if (!ticket?.invoiceNumber && !invoiceNumber) {
-        throw new BadRequestException('Se requiere número de factura para cerrar el ticket');
-      }
-      if (!ticket?.salePrice && !salePrice) {
-        throw new BadRequestException('Se requiere precio de venta para cerrar el ticket');
+      const isNormalClosure = !body.closureType || body.closureType === 'NORMAL';
+      if (isNormalClosure) {
+        const ticket = await this.prisma.ticket.findUnique({ where: { id } });
+        if (!ticket?.invoiceNumber && !invoiceNumber) {
+          throw new BadRequestException('Se requiere número de factura para cierre normal');
+        }
       }
     }
 
